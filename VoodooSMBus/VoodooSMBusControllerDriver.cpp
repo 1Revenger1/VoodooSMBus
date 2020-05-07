@@ -241,7 +241,7 @@ IOWorkLoop* VoodooSMBusControllerDriver::getWorkLoop() {
 
 void VoodooSMBusControllerDriver::handleInterrupt(OSObject* owner, IOInterruptEventSource* src, int intCount) {
     u8 status;
-
+    
     if (adapter->features & FEATURE_HOST_NOTIFY) {
         status = adapter->inb_p(SMBSLVSTS(adapter));
         if (status & SMBSLVSTS_HST_NTFY_STS) {

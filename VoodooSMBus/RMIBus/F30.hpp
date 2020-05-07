@@ -1,18 +1,15 @@
 //
-//  RMIBus.h
+//  F30.hpp
 //  VoodooSMBus
 //
-//  Created by Sheika Slate on 4/30/20.
+//  Created by Gwy on 5/6/20.
 //  Copyright © 2020 leo-labs. All rights reserved.
 //
 
-#ifndef RMIBus_h
-#define RMIBus_h
-#include <IOKit/IOService.h>
-#include <IOKit/IOLib.h>
-#include "VoodooSMBusSlaveDeviceDriver.hpp"
-#include "VoodooSMBusDeviceNub.hpp"
-#include "rmi_smbus.cpp"
+#ifndef F30_hpp
+#define F30_hpp
+
+#include "RMIBus.hpp"
 
 #define RMI_F30_QUERY_SIZE            2
 
@@ -39,16 +36,16 @@
 #define RMI_F30_CTRL_MAX_REG_BLOCKS    11
 
 #define RMI_F30_CTRL_REGS_MAX_SIZE (RMI_F30_CTRL_MAX_BYTES        \
-                    + 1                \
-                    + RMI_F30_CTRL_MAX_BYTES    \
-                    + RMI_F30_CTRL_MAX_BYTES    \
-                    + RMI_F30_CTRL_MAX_BYTES    \
-                    + 6                \
-                    + RMI_F30_CTRL_MAX_REGS        \
-                    + RMI_F30_CTRL_MAX_REGS        \
-                    + RMI_F30_CTRL_MAX_BYTES    \
-                    + 1                \
-                    + 1)
++ 1                \
++ RMI_F30_CTRL_MAX_BYTES    \
++ RMI_F30_CTRL_MAX_BYTES    \
++ RMI_F30_CTRL_MAX_BYTES    \
++ 6                \
++ RMI_F30_CTRL_MAX_REGS        \
++ RMI_F30_CTRL_MAX_REGS        \
++ RMI_F30_CTRL_MAX_BYTES    \
++ 1                \
++ 1)
 
 #define TRACKSTICK_RANGE_START        3
 #define TRACKSTICK_RANGE_END        6
@@ -56,7 +53,7 @@
 struct rmi_f30_ctrl_data {
     int address;
     int length;
-    u8 *regs;
+    uint8_t *regs;
 };
 
 struct f30_data {
@@ -68,38 +65,22 @@ struct f30_data {
     bool has_haptic;
     bool has_gpio_driver_control;
     bool has_mech_mouse_btns;
-    u8 gpioled_count;
-
-    u8 register_count;
-
+    uint8_t gpioled_count;
+    
+    uint8_t register_count;
+    
     /* Control Register Data */
     struct rmi_f30_ctrl_data ctrl[RMI_F30_CTRL_MAX_REG_BLOCKS];
-    u8 ctrl_regs[RMI_F30_CTRL_REGS_MAX_SIZE];
+    uint8_t ctrl_regs[RMI_F30_CTRL_REGS_MAX_SIZE];
     uint32_t ctrl_regs_size;
-
-    u8 data_regs[RMI_F30_CTRL_MAX_BYTES];
-    u16 *gpioled_key_map;
-
+    
+    uint8_t data_regs[RMI_F30_CTRL_MAX_BYTES];
+    uint16_t *gpioled_key_map;
+    
     struct input_dev *input;
-
+    
     struct rmi_function *f03;
     bool trackstick_buttons;
 };
 
-class RMIBus : public VoodooSMBusSlaveDeviceDriver {
-    OSDeclareDefaultStructors(RMIBus);
-    
-public:
-    RMIBus * probe(IOService *provider, SInt32 *score) override;
-    void handleHostNotify () override;
-    bool init(OSDictionary *dictionary) override;
-    bool start(IOService *provider) override;
-    void stop(IOService *provider) override;
-    VoodooSMBusDeviceNub* device_nub;
-    
-private:
-    void initialize();
-//    VoodooSMBusDeviceNub* device_nub;
-};
-    
-#endif /* RMIBus_h */
+#endif /* F30_hpp */
