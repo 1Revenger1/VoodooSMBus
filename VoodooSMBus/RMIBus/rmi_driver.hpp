@@ -38,10 +38,11 @@ struct pdt_entry {
     u8 function_number;
 };
 
-int rmi_initial_reset(RMIBus *dev, void *ctx, pdt_entry *pdt);
+int rmi_driver_probe(RMIBus *dev);
+int rmi_initial_reset(RMIBus *dev, void *ctx, const struct pdt_entry *pdt);
 int rmi_scan_pdt(RMIBus *dev, void *ctx,
-                 int (*callback)(RMIBus* dev,
-                                 void *ctx, pdt_entry *entry));
+                int (*callback)(RMIBus* dev,
+                                void *ctx, const struct pdt_entry *entry));
 int rmi_probe_interrupts(rmi_driver_data *data);
 int rmi_init_functions(struct rmi_driver_data *data);
 

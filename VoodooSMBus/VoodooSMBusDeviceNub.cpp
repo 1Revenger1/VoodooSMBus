@@ -56,6 +56,7 @@ bool VoodooSMBusDeviceNub::attach(IOService* provider, UInt8 address) {
     setProperty("VoodooSMBUS Slave Device Address", OSNumber::withNumber(address, 8));
     slave_device->addr = address;
     slave_device->flags = 0;
+    setProperty("Flags", OSNumber::withNumber(slave_device->flags, 8));
     
     return true;
 }
@@ -80,6 +81,7 @@ void VoodooSMBusDeviceNub::stop(IOService* provider) {
 
 void VoodooSMBusDeviceNub::setSlaveDeviceFlags(unsigned short flags) {
     slave_device->flags = flags;
+    setProperty("Flags", OSNumber::withNumber(slave_device->flags, 8));
 }
 
 IOReturn VoodooSMBusDeviceNub::readBlockData(u8 command, u8 *values) {

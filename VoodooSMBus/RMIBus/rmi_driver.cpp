@@ -16,7 +16,7 @@
 #define RMI_DEVICE_RESET_CMD    0x01
 #define DEFAULT_RESET_DELAY_MS    100
 
-static int rmi_driver_probe(RMIBus *dev)
+int rmi_driver_probe(RMIBus *dev)
 {
     rmi_driver_data *data;
     struct rmi_device_platform_data *pdata;
@@ -77,8 +77,8 @@ static int rmi_driver_probe(RMIBus *dev)
                  PDT_PROPERTIES_LOCATION, retval);
     }
     
-    IOSimpleLockInit(data->irq_mutex);
-    IOSimpleLockInit(data->enabled_mutex);
+    data->irq_mutex = IOSimpleLockAlloc();
+    data->enabled_mutex = IOSimpleLockAlloc();
     
     retval = rmi_probe_interrupts(data);
     if (retval)
@@ -90,21 +90,24 @@ static int rmi_driver_probe(RMIBus *dev)
     if (retval)
         goto err;
     
-    retval = rmi_irq_init(dev);
-    if (retval < 0)
-        goto err_destroy_functions;
-    
-    retval = rmi_enable_sensor(dev);
-    if (retval)
-        goto err_disable_irq;
-    
+//    retval = rmi_irq_init(dev);
+//    if (retval < 0)
+//        goto err_destroy_functions;
+//
+//    retval = rmi_enable_sensor(dev);
+//    if (retval)
+//        goto err_disable_irq;
+//
     return 0;
-    
-err_disable_irq:
-    rmi_disable_irq(dev, false);
-err_destroy_functions:
-    rmi_free_function_list(rmi_dev);
+//
+//err_disable_irq:
+//    rmi_disable_irq(dev, false);
+//err_destroy_functions:
+//    rmi_free_function_list(rmi_dev);
 err:
+    IOLog("Could not probe");
+    IOSimpleLockDestroy(data->irq_mutex);
+    IOSimpleLockDestroy(data->enabled_mutex);
     return retval;
 }
 
@@ -197,7 +200,7 @@ int rmi_scan_pdt(RMIBus *dev, void *ctx,
     return retval < 0 ? retval : 0;
 }
 
-int rmi_initial_reset (RMIBus *dev, void *ctx, pdt_entry *pdt)
+int rmi_initial_reset (RMIBus *dev, void *ctx, const struct pdt_entry *pdt)
 {
     int error;
     
@@ -212,7 +215,7 @@ int rmi_initial_reset (RMIBus *dev, void *ctx, pdt_entry *pdt)
             return error;
         }
         
-        mdelay(pdata->reset_delay_ms ?: DEFAULT_RESET_DELAY_MS);
+        IOSleep(DEFAULT_RESET_DELAY_MS);
         
         return RMI_SCAN_DONE;
     }
@@ -398,7 +401,7 @@ static int rmi_create_function(RMIBus *rmi_dev,
     for (i = 0; i < fn->num_of_irqs; i++)
         set_bit(fn->irq_pos + i, fn->irq_mask);
     
-    error = rmi_register_function(fn);
+//    error = rmi_register_function(fn);
     if (error)
         return error;
     
@@ -432,9 +435,9 @@ int rmi_init_functions(rmi_driver_data *data)
         goto err_destroy_functions;
     }
     
-    retval = rmi_dev->readBlock(
-                            data->f01_container->fd.control_base_addr + 1,
-                            data->current_irq_mask, data->num_of_irq_regs);
+//    retval = rmi_dev->readBlock(
+//                            data->f01_container->fd.control_base_addr + 1,
+//                            data->current_irq_mask, data->num_of_irq_regs);
     if (retval < 0) {
         IOLogError("%s: Failed to read current IRQ mask.\n", __func__);
         goto err_destroy_functions;
@@ -443,7 +446,7 @@ int rmi_init_functions(rmi_driver_data *data)
     return 0;
     
 err_destroy_functions:
-    rmi_free_function_list(rmi_dev);
+//    rmi_free_function_list(rmi_dev);
     return retval;
 }
 

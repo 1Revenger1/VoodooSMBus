@@ -8,12 +8,12 @@
 
 #include "rmi_smbus.hpp"
 
-static int rmi_smb_get_version(VoodooSMBusDeviceNub* dev)
+int RMIBus::rmi_smb_get_version()
 {
     int retval;
     
     /* Check if for SMBus new version device by reading version byte. */
-    retval = dev->readByteData(SMB_PROTOCOL_VERSION_ADDRESS);
+    retval = device_nub->readByteData(SMB_PROTOCOL_VERSION_ADDRESS);
     if (retval < 0) {
         IOLog("Failed to get SMBus version number!\n");
         return retval;
@@ -45,7 +45,7 @@ static int rmi_smb_get_command_code(RMIBus *dev,
     u8 i;
     int retval = 0;
     
-    IOSimpleLockLock(dev->mapping_table_mutex);
+    IOLockLock(dev->mapping_table_mutex);
     
     for (i = 0; i < RMI_SMB2_MAP_SIZE; i++) {
         struct mapping_table_entry *entry = &dev->mapping_table[i];
@@ -85,7 +85,7 @@ static int rmi_smb_get_command_code(RMIBus *dev,
     dev->mapping_table[i] = new_map;
     
 exit:
-    IOSimpleLockFree(dev->mapping_table_mutex);
+    IOLockUnlock(dev->mapping_table_mutex);
     
     if (retval < 0)
         return retval;
@@ -99,7 +99,7 @@ int RMIBus::readBlock(u16 rmiaddr, u8 *databuff, size_t len) {
     u8 commandcode;
     int cur_len = (int)len;
     
-    IOSimpleLockLock(page_mutex);
+    IOLockLock(page_mutex);
     memset(databuff, 0, len);
     
     while (cur_len > 0) {
@@ -111,8 +111,8 @@ int RMIBus::readBlock(u16 rmiaddr, u8 *databuff, size_t len) {
         if (retval < 0)
             goto exit;
         
-        retval = readBlock(commandcode,
-                                databuff, block_len);
+        retval = device_nub->readBlockData(commandcode, databuff);
+        
         if (retval < 0)
             goto exit;
         
@@ -125,7 +125,11 @@ int RMIBus::readBlock(u16 rmiaddr, u8 *databuff, size_t len) {
     retval = 0;
     
 exit:
-    IOSimpleLockFree(page_mutex);
+    IOLockUnlock(page_mutex);
     return retval;
+}
+
+int RMIBus::read(u16 rmiaddr, u8 *databuff) {
+    return readBlock(rmiaddr, databuff, 1);
 }
 

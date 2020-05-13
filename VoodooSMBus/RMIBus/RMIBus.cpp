@@ -13,8 +13,8 @@ OSDefineMetaClassAndStructors(RMIBus, VoodooSMBusSlaveDeviceDriver)
 #define super IOService
 
 bool RMIBus::init(OSDictionary *dictionary) {
-    IOSimpleLockInit(page_mutex);
-    IOSimpleLockInit(mapping_table_mutex);
+    page_mutex = IOLockAlloc();
+    mapping_table_mutex = IOLockAlloc();
     return super::init(dictionary);
 }
 
@@ -30,6 +30,16 @@ RMIBus * RMIBus::probe(IOService *provider, SInt32 *score) {
         return NULL;
     }
     
+    device_nub->setSlaveDeviceFlags(I2C_CLIENT_HOST_NOTIFY);
+
+    IOLog("Recieving SMBus version: %d\n", rmi_smb_get_version());
+    
+    if (rmi_driver_probe(this)) {
+        IOLog("Could not probe");
+        OSSafeReleaseNULL(device_nub);
+        return NULL;
+    }
+    
     return this;
 }
 
@@ -40,7 +50,6 @@ bool RMIBus::start(IOService *provider) {
 //    provider->joinPMtree(this);
 //    registerPowerDriver(this, , unsigned long numberOfStates);
     
-    device_nub->setSlaveDeviceFlags(I2C_CLIENT_HOST_NOTIFY);
     
 //    int i = 0;
 //    IOSleep(3000);
@@ -59,6 +68,8 @@ void RMIBus::handleHostNotify() {
 
 void RMIBus::stop(IOService *provider) {
     PMstop();
+    IOLockFree(page_mutex);
+    IOLockFree(mapping_table_mutex);
     OSSafeReleaseNULL(device_nub);
     super::stop(provider);
 }

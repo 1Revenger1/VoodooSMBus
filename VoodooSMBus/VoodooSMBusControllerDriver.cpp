@@ -48,7 +48,7 @@ bool VoodooSMBusControllerDriver::start(IOService *provider) {
         IOLog("Failed to cast provider\n");
         return false;
     }
-   
+    
     adapter->pci_device = pci_device;
     adapter->name = getMatchedName(provider);
     
@@ -58,11 +58,19 @@ bool VoodooSMBusControllerDriver::start(IOService *provider) {
         return false;
     }
     
+    pci_device->setBusMasterEnable(true);
+    pci_device->setMemoryEnable(true);
+    pci_device->setIOEnable(true);
+    
     uint32_t host_config = pci_device->configRead8(SMBHSTCFG);
+    adapter->original_slvcmd = host_config;
+    
     if ((host_config & SMBHSTCFG_HST_EN) == 0) {
-        IOLog("SMBus disabled\n");
-        return false;
+        IOLog("SMBus disabled - Enabling\n");
+        host_config |= SMBHSTCFG_HST_EN;
     }
+    
+    pci_device->configWrite8(SMBHSTCFG, host_config);
     
     adapter->smba = pci_device->configRead16(ICH_SMB_BASE) & 0xFFFE;
     
@@ -71,7 +79,6 @@ bool VoodooSMBusControllerDriver::start(IOService *provider) {
         return false;
     }
     
-    adapter->original_hstcfg = host_config;
     adapter->original_slvcmd = pci_device->ioRead8(SMBSLVCMD(adapter));
     adapter->features |= FEATURE_I2C_BLOCK_READ;
     adapter->features |= FEATURE_IRQ;
@@ -81,11 +88,18 @@ bool VoodooSMBusControllerDriver::start(IOService *provider) {
     adapter->retries = 3;
     adapter->timeout = 200000000;
     
+    IOLog("smba: %lu slvcmd: %u hostConfig: %u", adapter->smba, adapter->original_slvcmd, host_config);
+    
     work_loop = reinterpret_cast<IOWorkLoop*>(getWorkLoop());
     if (!work_loop) {
         IOLog("%s Could not get work loop\n", getName());
         goto exit;
     }
+    
+    /* Clear special mode bits */
+//    if (adapter->features & (FEATURE_SMBUS_PEC | FEATURE_BLOCK_BUFFER))
+//        adapter->outb_p(adapter->inb_p(SMBAUXCTL(adapter)) &
+//                        ~(SMBAUXCTL_CRC | SMBAUXCTL_E32B), SMBAUXCTL(adapter));
     
     interrupt_source =
     IOInterruptEventSource::interruptEventSource(this, OSMemberFunctionCast(IOInterruptEventAction, this, &VoodooSMBusControllerDriver::handleInterrupt),provider);

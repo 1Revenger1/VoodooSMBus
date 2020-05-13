@@ -181,11 +181,12 @@ public:
     int readBlock (u16 rmiaddr, u8 *databuff, size_t len);
     int blockWrite(u8 command, const u8 *buf, size_t len);
     
-    IOSimpleLock *page_mutex;
-    IOSimpleLock *mapping_table_mutex;
+    IOLock *page_mutex;
+    IOLock *mapping_table_mutex;
     struct mapping_table_entry mapping_table[RMI_SMB2_MAP_SIZE];
     u8 table_index;
 private:
+    int rmi_smb_get_version();
     void initialize();
 //    VoodooSMBusDeviceNub* device_nub;
 };

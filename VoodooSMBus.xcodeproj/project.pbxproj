@@ -577,7 +577,7 @@
 				PRODUCT_BUNDLE_IDENTIFIER = "de.leo-labs.VoodooSMBus";
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				PROVISIONING_PROFILE_SPECIFIER = "";
-				SDKROOT = macosx10.13;
+				SDKROOT = macosx;
 				WRAPPER_EXTENSION = kext;
 			};
 			name = Debug;
@@ -598,7 +598,7 @@
 				PRODUCT_BUNDLE_IDENTIFIER = "de.leo-labs.VoodooSMBus";
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				PROVISIONING_PROFILE_SPECIFIER = "";
-				SDKROOT = macosx10.13;
+				SDKROOT = macosx;
 				WRAPPER_EXTENSION = kext;
 			};
 			name = Release;
