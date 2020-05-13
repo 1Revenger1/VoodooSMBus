@@ -179,16 +179,18 @@ public:
     int read(u16 addr, u8 *buf);
     // rmi_read_block
     int readBlock (u16 rmiaddr, u8 *databuff, size_t len);
+    // rmi_block_write
     int blockWrite(u8 command, const u8 *buf, size_t len);
     
     IOLock *page_mutex;
     IOLock *mapping_table_mutex;
     struct mapping_table_entry mapping_table[RMI_SMB2_MAP_SIZE];
     u8 table_index;
+    
+    int rmi_register_function(struct rmi_function);
 private:
     int rmi_smb_get_version();
     void initialize();
-//    VoodooSMBusDeviceNub* device_nub;
 };
     
 #endif /* RMIBus_h */

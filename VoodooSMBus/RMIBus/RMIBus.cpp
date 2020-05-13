@@ -50,14 +50,6 @@ bool RMIBus::start(IOService *provider) {
 //    provider->joinPMtree(this);
 //    registerPowerDriver(this, , unsigned long numberOfStates);
     
-    
-//    int i = 0;
-//    IOSleep(3000);
-//    while (i++ < 10) {
-//        IOLog("Recieving SMBus version: %d\n", rmi_smb_get_version(device_nub));
-//        IOSleep(300);
-//    }
-    
     registerService();
     return true;
 }
@@ -76,6 +68,12 @@ void RMIBus::stop(IOService *provider) {
 
 void RMIBus::initialize() {
     
-//    rmi_write_block
     
+}
+
+int RMIBus::rmi_register_function(struct rmi_function) {
+    // Idk what to do with this actually tbh...
+    // Probs can delete
+    
+    return 0;
 }

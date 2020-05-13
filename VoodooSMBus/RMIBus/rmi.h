@@ -65,11 +65,12 @@ struct rmi_driver_data {
     int num_of_irq_regs;
     int irq_count;
     unsigned long *irq_memory;
+    unsigned long irq_memory_size;
     unsigned long *irq_status;
     unsigned long *fn_irq_bits;
     unsigned long *current_irq_mask;
     unsigned long *new_irq_mask;
-    IOSimpleLock *irq_mutex;
+    IOLock *irq_mutex;
     
     struct irq_domain *irqdomain;
     
@@ -79,7 +80,7 @@ struct rmi_driver_data {
     u8 num_tx_electrodes;
     
     bool enabled;
-    IOSimpleLock *enabled_mutex;
+    IOLock *enabled_mutex;
     
     rmi4_attn_data attn_data;
     

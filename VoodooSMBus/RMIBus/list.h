@@ -17,7 +17,7 @@ struct list_head {
 };
 
 #define container_of(ptr, type, member) ({  \
-    void *__mptr = (void *)(ptr);                        \
+    type *__mptr = (type *)(ptr);                        \
     ((type *)(__mptr - offsetof(type,member))); })
 
 /**
@@ -131,5 +131,55 @@ static inline void list_add_tail(list_head *entry, list_head *head)
     for (pos = list_last_entry(head, typeof(*pos), member);        \
         &pos->member != (head);                     \
         pos = list_prev_entry(pos, member))
+
+/**
+ * list_for_each_entry_safe_reverse - iterate backwards over list safe against removal
+ * @pos:    the type * to use as a loop cursor.
+ * @n:        another type * to use as temporary storage
+ * @head:    the head for your list.
+ * @member:    the name of the list_head within the struct.
+ *
+ * Iterate backwards over list of given type, safe against removal
+ * of list entry.
+ */
+#define list_for_each_entry_safe_reverse(pos, n, head, member)        \
+    for (pos = list_last_entry(head, typeof(*pos), member),        \
+            n = list_prev_entry(pos, member);            \
+        &pos->member != (head);                     \
+        pos = n, n = list_prev_entry(n, member))
+
+/*
+ * Delete a list entry by making the prev/next entries
+ * point to each other.
+ *
+ * This is only for internal list manipulation where we know
+ * the prev/next entries already!
+ */
+static inline void __list_del(struct list_head * prev, struct list_head * next)
+{
+    next->prev = prev;
+    OSCompareAndSwapPtr(next, prev->next, next);
+}
+
+static inline void __list_del_entry(struct list_head *entry)
+{
+    __list_del(entry->prev, entry->next);
+}
+
+#define LIST_POISON1 NULL
+#define LIST_POISON2 NULL
+
+/**
+ * list_del - deletes entry from list.
+ * @entry: the element to delete from the list.
+ * Note: list_empty() on entry does not return true after this, the entry is
+ * in an undefined state.
+ */
+static inline void list_del(struct list_head *entry)
+{
+    __list_del_entry(entry);
+    entry->next = LIST_POISON1;
+    entry->prev = LIST_POISON2;
+}
 
 #endif /* list_h */

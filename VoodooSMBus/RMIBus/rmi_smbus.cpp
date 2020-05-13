@@ -103,7 +103,7 @@ int RMIBus::readBlock(u16 rmiaddr, u8 *databuff, size_t len) {
     memset(databuff, 0, len);
     
     while (cur_len > 0) {
-        /* break into 32 bytes chunks to write get command code */
+        /* break into 8 bytes chunks to write get command code */
         int block_len =  min(cur_len, SMB_MAX_COUNT);
         
         retval = rmi_smb_get_command_code(this, rmiaddr, block_len,

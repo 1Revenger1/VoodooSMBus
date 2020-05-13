@@ -45,5 +45,7 @@ int rmi_scan_pdt(RMIBus *dev, void *ctx,
                                 void *ctx, const struct pdt_entry *entry));
 int rmi_probe_interrupts(rmi_driver_data *data);
 int rmi_init_functions(struct rmi_driver_data *data);
+void rmi_free_function_list(RMIBus *rmi_dev);
+int rmi_enable_sensor(RMIBus *rmi_dev);
 
 #endif /* rmi_driver_h */
