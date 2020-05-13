@@ -15,7 +15,6 @@
 		A48372D72463444200E87AD4 /* rmi_driver.cpp in Sources */ = {isa = PBXBuildFile; fileRef = A48372D52463444200E87AD4 /* rmi_driver.cpp */; };
 		A48372DB24634B8400E87AD4 /* F30.cpp in Sources */ = {isa = PBXBuildFile; fileRef = A48372D924634B8400E87AD4 /* F30.cpp */; };
 		A48372DC24634B8400E87AD4 /* F30.hpp in Headers */ = {isa = PBXBuildFile; fileRef = A48372DA24634B8400E87AD4 /* F30.hpp */; };
-		A48372DF2463FE7100E87AD4 /* list.h in Headers */ = {isa = PBXBuildFile; fileRef = A48372DE2463FE7100E87AD4 /* list.h */; };
 		B35EF3BB23035D16001DBD8E /* helpers.cpp in Sources */ = {isa = PBXBuildFile; fileRef = B35EF3BA23035D16001DBD8E /* helpers.cpp */; };
 		B36B6EB022DEBBA40062F8F4 /* VoodooSMBusIntelLpssI2C.cpp in Sources */ = {isa = PBXBuildFile; fileRef = B36B6EAE22DEBBA40062F8F4 /* VoodooSMBusIntelLpssI2C.cpp */; };
 		B36B6EB122DEBBA40062F8F4 /* VoodooSMBusIntelLpssI2C.hpp in Headers */ = {isa = PBXBuildFile; fileRef = B36B6EAF22DEBBA40062F8F4 /* VoodooSMBusIntelLpssI2C.hpp */; };
@@ -78,7 +77,6 @@
 		A48372D924634B8400E87AD4 /* F30.cpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; path = F30.cpp; sourceTree = "<group>"; };
 		A48372DA24634B8400E87AD4 /* F30.hpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.h; path = F30.hpp; sourceTree = "<group>"; };
 		A48372DD24634EB600E87AD4 /* rmi.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = rmi.h; sourceTree = "<group>"; };
-		A48372DE2463FE7100E87AD4 /* list.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = list.h; sourceTree = "<group>"; };
 		B35EF3BA23035D16001DBD8E /* helpers.cpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; path = helpers.cpp; sourceTree = "<group>"; };
 		B36B6EAE22DEBBA40062F8F4 /* VoodooSMBusIntelLpssI2C.cpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; path = VoodooSMBusIntelLpssI2C.cpp; sourceTree = "<group>"; };
 		B36B6EAF22DEBBA40062F8F4 /* VoodooSMBusIntelLpssI2C.hpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.h; path = VoodooSMBusIntelLpssI2C.hpp; sourceTree = "<group>"; };
@@ -158,7 +156,6 @@
 				A48372DA24634B8400E87AD4 /* F30.hpp */,
 				A48372D924634B8400E87AD4 /* F30.cpp */,
 				A48372DD24634EB600E87AD4 /* rmi.h */,
-				A48372DE2463FE7100E87AD4 /* list.h */,
 			);
 			path = RMIBus;
 			sourceTree = "<group>";
@@ -313,7 +310,6 @@
 			isa = PBXHeadersBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-				A48372DF2463FE7100E87AD4 /* list.h in Headers */,
 				A48372DC24634B8400E87AD4 /* F30.hpp in Headers */,
 				B3D4D4AF22DE380F00032061 /* VoodooI2CMultitouchInterface.hpp in Headers */,
 				B3B31E6A22DA3C9E00179497 /* ELANTouchpadDriver.hpp in Headers */,

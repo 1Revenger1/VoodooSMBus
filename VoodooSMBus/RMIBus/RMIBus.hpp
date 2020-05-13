@@ -15,7 +15,6 @@
 #include "rmi.h"
 #include "rmi_driver.hpp"
 #include "rmi_smbus.hpp"
-#include "list.h"
 
 class RMIBus;
 
@@ -117,6 +116,10 @@ static inline unsigned long OSBitOrAtomic64(unsigned long mask, unsigned long * 
     return OSBitwiseAtomic64(-1, mask, 0, value);
 }
 
+#define container_of(ptr, type, member) ({  \
+    type *__mptr = (type *)(ptr);           \
+    ((type *)(__mptr - offsetof(type, member))); })
+
 /*
  * The interrupt source count in the function descriptor can represent up to
  * 6 interrupt sources in the normal manner.
@@ -140,8 +143,8 @@ static inline unsigned long OSBitOrAtomic64(unsigned long mask, unsigned long * 
  * @node: entry in device's list of functions
  */
 struct rmi_function {
+    int size;
     struct rmi_function_descriptor fd;
-    struct list_head node;
     RMIBus *dev;
     
     unsigned int num_of_irqs;
@@ -188,8 +191,8 @@ public:
     u8 table_index;
     
     int rmi_register_function(struct rmi_function);
-private:
     int rmi_smb_get_version();
+private:
     void initialize();
 };
     

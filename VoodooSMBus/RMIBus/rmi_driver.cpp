@@ -36,7 +36,8 @@ int rmi_driver_probe(RMIBus *dev)
     if (!data)
         return -ENOMEM;
     
-    INIT_LIST_HEAD(&data->function_list);
+//    data->functionListIndex = 0;
+//    INIT_LIST_HEAD(&data->function_list);
     data->rmi_dev = dev;
     dev->data = data;
     
@@ -207,10 +208,15 @@ int rmi_initial_reset(RMIBus *dev, void *ctx, const struct pdt_entry *pdt)
         u16 cmd_addr = pdt->page_start + pdt->command_base_addr;
         u8 cmd_buf = RMI_DEVICE_RESET_CMD;
         
-        IOLog("Sending Reset\n");
-        error = dev->blockWrite(cmd_addr, &cmd_buf, 1);
-        if (error) {
-            IOLogError("Initial reset failed. Code = %d\n", error);
+//        IOLog("Sending Reset\n");
+//        error = dev->blockWrite(cmd_addr, &cmd_buf, 1);
+//        if (error) {
+//            IOLogError("Initial reset failed. Code = %d\n", error);
+//            return error;
+//        }
+        error = dev->rmi_smb_get_version();
+        if (error < 0) {
+            IOLog("Unable to reset");
             return error;
         }
         
@@ -305,6 +311,7 @@ int rmi_probe_interrupts(rmi_driver_data *data)
     
     data->irq_count = irq_count;
     data->num_of_irq_regs = (data->irq_count + 7) / 8;
+    IOLogDebug("IRQ Count: %d\n", data->irq_count);
     
     size = BITS_TO_LONGS(data->irq_count) * sizeof(unsigned long);
     
@@ -378,19 +385,20 @@ static int rmi_create_function(RMIBus *rmi_dev,
 //    int error;
     
     IOLog("Initializing F%02X.\n", pdt->function_number);
-
-    fn = reinterpret_cast<rmi_function*>(IOMalloc(sizeof(rmi_function) +
-                 BITS_TO_LONGS(data->irq_count) * sizeof(unsigned long)));
     
-    memset (fn, 0, sizeof(rmi_function) +
-            BITS_TO_LONGS(data->irq_count) * sizeof(unsigned long));
+    int size = sizeof(rmi_function)
+        + BITS_TO_LONGS(data->irq_count) * sizeof(unsigned long);
+    
+    fn = reinterpret_cast<rmi_function*>(IOMalloc(size));
+    memset (fn, 0, size);
+    
+    fn->size = size;
     
     if (!fn) {
         IOLogError("Failed to allocate memory for F%02X\n", pdt->function_number);
         return -ENOMEM;
     }
     
-    INIT_LIST_HEAD(&fn->node);
     rmi_driver_copy_pdt_to_fd(pdt, &fn->fd);
     
     fn->dev = rmi_dev;
@@ -412,7 +420,8 @@ static int rmi_create_function(RMIBus *rmi_dev,
     else if (pdt->function_number == 0x34)
         data->f34_container = fn;
     
-    list_add_tail(&fn->node, &data->function_list);
+    data->function_list[data->functionListIndex++] = fn;
+//    list_add_tail(&fn->node, &data->function_list);
     
     return RMI_SCAN_CONTINUE;
 }
@@ -425,7 +434,7 @@ static int configure_one_function(struct rmi_function *fn)
     if (!fn || !fn->dev)
         return 0;
 
-    IOLog("Configure function %d\n", fn->fd.function_number);
+    IOLog("Configure function F%02X\n", fn->fd.function_number);
 //    fh = to_rmi_function_handler(fn->dev);
 //    if (fh->config) {
 //        retval = fh->config(fn);
@@ -443,10 +452,10 @@ static int rmi_driver_process_config_requests(RMIBus *rmi_dev)
     struct rmi_function *entry;
     int retval;
     
-    list_for_each_entry(entry, &data->function_list, node) {
-        retval = configure_one_function(entry);
-        if (retval < 0)
-            return retval;
+    for (int i = 0; i < data->functionListIndex; i++) {
+        retval = configure_one_function(data->function_list[i]);
+            if (retval < 0)
+                return retval;
     }
     
     return 0;
@@ -506,15 +515,20 @@ void rmi_free_function_list(RMIBus *rmi_dev)
     
     IOLogDebug("Freeing function list\n");
     
-    /* Doing it in the reverse order so F01 will be removed last */
-    list_for_each_entry_safe_reverse(fn, tmp,
-                                     &data->function_list, node) {
-        list_del(&fn->node);
-        // TODO: We don't register - do we really need to unregister?
-//        rmi_unregister_function(fn);
+    for(int i = data->functionListIndex - 1; i >= 0; i--) {
+//        IOFree(data->function_list[i], data->function_list[i]->size);
+        data->function_list[i] = NULL;
     }
     
-    IOFree(data->irq_memory, sizeof(data->irq_memory_size));
+    /* Doing it in the reverse order so F01 will be removed last */
+//    list_for_each_entry_safe_reverse(fn, tmp,
+//                                     &data->function_list, node) {
+//        list_del(&fn->node);
+//        // TODO: We don't register - do we really need to unregister?
+////        rmi_unregister_function(fn);
+//    }
+    
+//    IOFree(data->irq_memory, sizeof(data->irq_memory_size));
     data->irq_memory = NULL;
     data->irq_status = NULL;
     data->fn_irq_bits = NULL;

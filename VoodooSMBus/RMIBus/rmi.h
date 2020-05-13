@@ -10,7 +10,6 @@
 #define rmi_h
 
 #include "RMIBus.hpp"
-#include "list.h"
 
 class RMIBus;
 struct rmi_function;
@@ -53,8 +52,12 @@ struct __kfifo {
     void        *data;
 };
 
+#define MAX_NUM_FUNCS 10
+
 struct rmi_driver_data {
-    list_head function_list;
+    int functionListIndex;
+    rmi_function *function_list[MAX_NUM_FUNCS];
+//    list_head function_list;
     
     RMIBus *rmi_dev;
     
