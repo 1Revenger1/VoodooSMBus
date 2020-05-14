@@ -52,13 +52,37 @@ struct __kfifo {
     void        *data;
 };
 
-#define MAX_NUM_FUNCS 10
+
+class RMIFunction : public IOService {
+    OSDeclareDefaultStructors(RMIFunction)
+    
+public:
+    virtual RMIFunction* probe(IOService *provider, SInt32 *score) override;
+    virtual bool start(IOService *provider) override;
+    virtual void stop(IOService *provider) override;
+    IOReturn virtual handleInterrupt();
+    int virtual functionIrq();
+    
+    inline void setFunctionDesc(rmi_function_descriptor *desc) {
+        this->fn_descriptor = desc;
+    }
+    
+    inline void setBit(int bit) {
+        irq_mask |= 1 << bit;
+    }
+    
+    inline unsigned long getIRQ() {
+        return irq_mask;
+    }
+    
+private:
+    unsigned long irq_mask;
+    
+protected:
+    rmi_function_descriptor *fn_descriptor;
+};
 
 struct rmi_driver_data {
-    int functionListIndex;
-    rmi_function *function_list[MAX_NUM_FUNCS];
-//    list_head function_list;
-    
     RMIBus *rmi_dev;
     
     rmi_function *f01_container;

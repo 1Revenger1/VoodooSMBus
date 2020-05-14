@@ -36,8 +36,6 @@ int rmi_driver_probe(RMIBus *dev)
     if (!data)
         return -ENOMEM;
     
-//    data->functionListIndex = 0;
-//    INIT_LIST_HEAD(&data->function_list);
     data->rmi_dev = dev;
     dev->data = data;
     
@@ -89,10 +87,6 @@ int rmi_driver_probe(RMIBus *dev)
     retval = rmi_init_functions(data);
     if (retval)
         goto err;
-    
-//    retval = rmi_irq_init(dev);
-//    if (retval < 0)
-//        goto err_destroy_functions;
 
     retval = rmi_enable_sensor(dev);
     if (retval)
@@ -208,6 +202,7 @@ int rmi_initial_reset(RMIBus *dev, void *ctx, const struct pdt_entry *pdt)
         u16 cmd_addr = pdt->page_start + pdt->command_base_addr;
         u8 cmd_buf = RMI_DEVICE_RESET_CMD;
         
+        // Only send reset if there is no reset in transport (SMBus has one which just gets version)
 //        IOLog("Sending Reset\n");
 //        error = dev->blockWrite(cmd_addr, &cmd_buf, 1);
 //        if (error) {
@@ -300,7 +295,9 @@ int rmi_probe_interrupts(rmi_driver_data *data)
         IOLogDebug("Device in bootloader mode.\n");
     
     /* Allocate and register a linear revmap irq_domain */
-    // TODO: IRQs
+//    rmi_dev->irqDict = new OSDictionary(irq_count);
+    
+    
     //    data->irqdomain = irq_domain_create_linear(fwnode, irq_count,
 //                                               &irq_domain_simple_ops,
 //                                               data);
@@ -382,7 +379,7 @@ static int rmi_create_function(RMIBus *rmi_dev,
     int *current_irq_count = reinterpret_cast<int *>(ctx);
     struct rmi_function *fn;
     int i;
-//    int error;
+    int error;
     
     IOLog("Initializing F%02X.\n", pdt->function_number);
     
@@ -410,52 +407,31 @@ static int rmi_create_function(RMIBus *rmi_dev,
     for (i = 0; i < fn->num_of_irqs; i++)
         set_bit(fn->irq_pos + i, fn->irq_mask);
     
-// TODO: Decide if I need to use this - function is basically a stub right now
-//    error = rmi_dev->rmi_register_function(*fn);
-//    if (error)
-//        return error;
+    error = rmi_dev->rmi_register_function(*fn);
+    if (error)
+        return error;
     
     if (pdt->function_number == 0x01)
         data->f01_container = fn;
     else if (pdt->function_number == 0x34)
         data->f34_container = fn;
     
-    data->function_list[data->functionListIndex++] = fn;
-//    list_add_tail(&fn->node, &data->function_list);
-    
     return RMI_SCAN_CONTINUE;
-}
-
-static int configure_one_function(struct rmi_function *fn)
-{
-    struct rmi_function_handler *fh;
-    int retval = 0;
-    
-    if (!fn || !fn->dev)
-        return 0;
-
-    IOLog("Configure function F%02X\n", fn->fd.function_number);
-//    fh = to_rmi_function_handler(fn->dev);
-//    if (fh->config) {
-//        retval = fh->config(fn);
-//        if (retval < 0)
-//            dev_err(&fn->dev, "Config failed with code %d.\n",
-//                    retval);
-//    }
-    
-    return retval;
 }
 
 static int rmi_driver_process_config_requests(RMIBus *rmi_dev)
 {
-    struct rmi_driver_data *data = rmi_dev->data;
-    struct rmi_function *entry;
-    int retval;
+    OSObject *obj = NULL;
+    RMIFunction *func;
     
-    for (int i = 0; i < data->functionListIndex; i++) {
-        retval = configure_one_function(data->function_list[i]);
-            if (retval < 0)
-                return retval;
+    OSIterator* iter = rmi_dev->getClientIterator();
+    while ((obj = iter->getNextObject()) != NULL) {
+        func = reinterpret_cast<RMIFunction *>(obj);
+        if (func && !func->start(rmi_dev)) {
+            IOLogError("Could not start function %s\n", func->getName());
+        }
+        
+        func = NULL;
     }
     
     return 0;
@@ -519,14 +495,6 @@ void rmi_free_function_list(RMIBus *rmi_dev)
 //        IOFree(data->function_list[i], data->function_list[i]->size);
         data->function_list[i] = NULL;
     }
-    
-    /* Doing it in the reverse order so F01 will be removed last */
-//    list_for_each_entry_safe_reverse(fn, tmp,
-//                                     &data->function_list, node) {
-//        list_del(&fn->node);
-//        // TODO: We don't register - do we really need to unregister?
-////        rmi_unregister_function(fn);
-//    }
     
 //    IOFree(data->irq_memory, sizeof(data->irq_memory_size));
     data->irq_memory = NULL;

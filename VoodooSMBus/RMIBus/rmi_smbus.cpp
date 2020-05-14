@@ -34,6 +34,17 @@ int RMIBus::blockWrite(u8 command, const u8 *buf, size_t len)
     return retval;
 }
 
+int RMIBus::write(u8 command, const u8 *buf) {
+    int retval;
+    
+    retval = device_nub->writeByteData(command, *buf);
+    if (retval < 0) {
+        IOLog("Failed to write byte to SMBus");
+    }
+    
+    return retval;
+}
+
 /*
  * The function to get command code for smbus operations and keeps
  * records to the driver mapping table

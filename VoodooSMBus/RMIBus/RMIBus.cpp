@@ -54,8 +54,42 @@ bool RMIBus::start(IOService *provider) {
     return true;
 }
 
+void RMIBus::handleHostNotifyThreaded()
+{
+    OSIterator* iter = getClientIterator();
+    OSObject* obj = NULL;
+    RMIFunction* func;
+    
+    unsigned long curIRQ = 0;
+    
+    while((obj = iter->getNextObject()) != NULL)
+    {
+        func = reinterpret_cast<RMIFunction*>(obj);
+        if (!func) continue;
+        
+        if (func->functionIrq() & curIRQ)
+            func->handleInterrupt();
+        
+        func = NULL;
+    }
+    iter->reset();
+    
+    IOLogError("Unknown command");
+}
+
 void RMIBus::handleHostNotify() {
     IOLog("Notification recieved");
+    
+    thread_t new_thread;
+    kern_return_t ret = kernel_thread_start(
+            OSMemberFunctionCast(thread_continue_t, this, &RMIBus::handleHostNotifyThreaded),
+            this, &new_thread);
+    
+    if (ret != KERN_SUCCESS) {
+        IOLogDebug(" Thread error while attemping to handle host notify in device nub.\n");
+    } else {
+        thread_deallocate(new_thread);
+    }
 }
 
 void RMIBus::stop(IOService *provider) {
@@ -71,9 +105,56 @@ void RMIBus::initialize() {
     
 }
 
-int RMIBus::rmi_register_function(struct rmi_function) {
-    // Idk what to do with this actually tbh...
-    // Probs can delete
+void RMIBus::free() {
+    OSIterator *iter = getClientIterator();
+    OSObject *obj;
+    IOService *cast;
+    
+    while ((obj = iter->getNextObject()) != NULL) {
+        cast = reinterpret_cast<IOService*>(obj);
+        cast->detach(this);
+        cast = NULL;
+    }
+}
+
+int RMIBus::rmi_register_function(struct rmi_function fn) {
+    RMIFunction * function;
+    
+    switch(fn.fd.function_number) {
+        case 0x01:
+            function = reinterpret_cast<RMIFunction*>(OSTypeAlloc(F01));
+            break;
+        case 0x54:
+            IOLog("F54 not implemented - Debug function\n");
+            return 0;
+        default:
+            IOLogError("Unknown function: %02X\n", fn.fd.function_number);
+            return -ENODEV;
+    }
+    
+    if (!function || !function->init()) {
+        IOLogError("Could not initialize function: %02X\n", fn.fd.function_number);
+        return -ENODEV;
+    }
+    
+    function->setFunctionDesc(&fn.fd);
+    
+    SInt32 score = 100;
+    
+    if (!function->probe(this, &score)) {
+        IOLogError("Probe failed for function: %02X\n", fn.fd.function_number);
+        return -ENODEV;
+    }
+    
+    // rmi_create_function_irq
+    for(int i = 0; i < fn.num_of_irqs; i++) {
+        function->setBit(fn.irq_pos + i);
+    }
+    
+    if (!function->attach(this)) {
+        IOLogError("Function %02X could not attach\n", fn.fd.function_number);
+        return -ENODEV;
+    }
     
     return 0;
 }

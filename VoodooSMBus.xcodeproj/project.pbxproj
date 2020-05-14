@@ -15,6 +15,8 @@
 		A48372D72463444200E87AD4 /* rmi_driver.cpp in Sources */ = {isa = PBXBuildFile; fileRef = A48372D52463444200E87AD4 /* rmi_driver.cpp */; };
 		A48372DB24634B8400E87AD4 /* F30.cpp in Sources */ = {isa = PBXBuildFile; fileRef = A48372D924634B8400E87AD4 /* F30.cpp */; };
 		A48372DC24634B8400E87AD4 /* F30.hpp in Headers */ = {isa = PBXBuildFile; fileRef = A48372DA24634B8400E87AD4 /* F30.hpp */; };
+		A48C6327246CBD2C0002DFBD /* F01.cpp in Sources */ = {isa = PBXBuildFile; fileRef = A48C6325246CBD2C0002DFBD /* F01.cpp */; };
+		A48C6328246CBD2C0002DFBD /* F01.hpp in Headers */ = {isa = PBXBuildFile; fileRef = A48C6326246CBD2C0002DFBD /* F01.hpp */; };
 		B35EF3BB23035D16001DBD8E /* helpers.cpp in Sources */ = {isa = PBXBuildFile; fileRef = B35EF3BA23035D16001DBD8E /* helpers.cpp */; };
 		B36B6EB022DEBBA40062F8F4 /* VoodooSMBusIntelLpssI2C.cpp in Sources */ = {isa = PBXBuildFile; fileRef = B36B6EAE22DEBBA40062F8F4 /* VoodooSMBusIntelLpssI2C.cpp */; };
 		B36B6EB122DEBBA40062F8F4 /* VoodooSMBusIntelLpssI2C.hpp in Headers */ = {isa = PBXBuildFile; fileRef = B36B6EAF22DEBBA40062F8F4 /* VoodooSMBusIntelLpssI2C.hpp */; };
@@ -77,12 +79,15 @@
 		A48372D924634B8400E87AD4 /* F30.cpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; path = F30.cpp; sourceTree = "<group>"; };
 		A48372DA24634B8400E87AD4 /* F30.hpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.h; path = F30.hpp; sourceTree = "<group>"; };
 		A48372DD24634EB600E87AD4 /* rmi.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = rmi.h; sourceTree = "<group>"; };
+		A48C6325246CBD2C0002DFBD /* F01.cpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; path = F01.cpp; sourceTree = "<group>"; };
+		A48C6326246CBD2C0002DFBD /* F01.hpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.h; path = F01.hpp; sourceTree = "<group>"; };
+		A48C6329246D0BD00002DFBD /* types.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = types.h; sourceTree = "<group>"; };
 		B35EF3BA23035D16001DBD8E /* helpers.cpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; path = helpers.cpp; sourceTree = "<group>"; };
 		B36B6EAE22DEBBA40062F8F4 /* VoodooSMBusIntelLpssI2C.cpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; path = VoodooSMBusIntelLpssI2C.cpp; sourceTree = "<group>"; };
 		B36B6EAF22DEBBA40062F8F4 /* VoodooSMBusIntelLpssI2C.hpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.h; path = VoodooSMBusIntelLpssI2C.hpp; sourceTree = "<group>"; };
 		B3953FF922D8DBC100473323 /* VoodooSMBus.kext */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = VoodooSMBus.kext; sourceTree = BUILT_PRODUCTS_DIR; };
 		B3953FFC22D8DBC100473323 /* VoodooSMBusControllerDriver.hpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.h; path = VoodooSMBusControllerDriver.hpp; sourceTree = "<group>"; };
-		B3953FFE22D8DBC100473323 /* VoodooSMBusControllerDriver.cpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; path = VoodooSMBusControllerDriver.cpp; sourceTree = "<group>"; };
+		B3953FFE22D8DBC100473323 /* VoodooSMBusControllerDriver.cpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; path = VoodooSMBusControllerDriver.cpp; sourceTree = "<group>"; wrapsLines = 0; };
 		B395400022D8DBC100473323 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
 		B395400622D8F7FE00473323 /* i2c_i801.cpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; path = i2c_i801.cpp; sourceTree = "<group>"; };
 		B395400822D8FD6100473323 /* helpers.hpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.h; path = helpers.hpp; sourceTree = "<group>"; };
@@ -153,9 +158,12 @@
 				A46E495624611F5A00749F79 /* rmi_smbus.cpp */,
 				A48372D42463444200E87AD4 /* rmi_driver.hpp */,
 				A48372D52463444200E87AD4 /* rmi_driver.cpp */,
+				A48372DD24634EB600E87AD4 /* rmi.h */,
+				A48C6326246CBD2C0002DFBD /* F01.hpp */,
+				A48C6325246CBD2C0002DFBD /* F01.cpp */,
 				A48372DA24634B8400E87AD4 /* F30.hpp */,
 				A48372D924634B8400E87AD4 /* F30.cpp */,
-				A48372DD24634EB600E87AD4 /* rmi.h */,
+				A48C6329246D0BD00002DFBD /* types.h */,
 			);
 			path = RMIBus;
 			sourceTree = "<group>";
@@ -340,6 +348,7 @@
 				B3D4D4B522DE380F00032061 /* VoodooI2CMT2SimulatorDevice.hpp in Headers */,
 				A48372D62463444200E87AD4 /* rmi_driver.hpp in Headers */,
 				B3D4D4C322DE380F00032061 /* csgesture-softc.h in Headers */,
+				A48C6328246CBD2C0002DFBD /* F01.hpp in Headers */,
 				B3D4D4C922DE380F00032061 /* IOHIDPrivateKeys.h in Headers */,
 				B3D4D4C222DE380F00032061 /* csgesturescroll.h in Headers */,
 				B3B31E6222DA2C4800179497 /* VoodooSMBusDeviceNub.hpp in Headers */,
@@ -419,6 +428,7 @@
 				B3D4D4AE22DE380F00032061 /* helpers.cpp in Sources */,
 				B3B31E6122DA2C4800179497 /* VoodooSMBusDeviceNub.cpp in Sources */,
 				B3D4D4B422DE380F00032061 /* VoodooI2CNativeEngine.cpp in Sources */,
+				A48C6327246CBD2C0002DFBD /* F01.cpp in Sources */,
 				A46E495824611F5A00749F79 /* rmi_smbus.cpp in Sources */,
 				B3CF122F2343A92C00DBBD8D /* Configuration.cpp in Sources */,
 				B3D4D4BF22DE380F00032061 /* csgesturescroll.cpp in Sources */,
