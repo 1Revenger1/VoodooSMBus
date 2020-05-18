@@ -10,6 +10,8 @@
 #define F01_hpp
 
 #include <RMIBus.hpp>
+#include <IOKit/IOService.h>
+#include "rmi.h"
 
 #define RMI_PRODUCT_ID_LENGTH    10
 #define RMI_PRODUCT_INFO_LENGTH   2
@@ -125,6 +127,7 @@ public:
     bool init(OSDictionary *dictionary) override;
     F01 * probe(IOService *provider, SInt32 *score) override;
     bool start(IOService *provider) override;
+    void free() override;
     
     /**
      *  Duplicates properties to put in as flags
@@ -149,6 +152,8 @@ private:
     void publishProps();
     int rmi_f01_read_properties();
     int rmi_f01_config();
+    
+    OSDictionary *deviceDict, *propDict;
 };
 
 #endif /* F01_hpp */

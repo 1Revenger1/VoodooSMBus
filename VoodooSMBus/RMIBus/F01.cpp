@@ -13,14 +13,19 @@ OSDefineMetaClassAndStructors(F01, RMIFunction);
 
 bool F01::init(OSDictionary *dictionary)
 {
-    properties = reinterpret_cast<f01_basic_properties*>(IOMalloc(sizeof(f01_basic_properties)));
+    if (!super::init(dictionary))
+        return false;
     
+    properties = reinterpret_cast<f01_basic_properties*>(IOMalloc(sizeof(f01_basic_properties)));
     if (!properties)
         return false;
 
     device_control = reinterpret_cast<f01_device_control*>(IOMalloc(sizeof(f01_device_control)));
     if (!device_control)
         return false;
+    
+    memset(properties, 0, sizeof(f01_basic_properties));
+    memset(device_control, 0, sizeof(f01_device_control));
     
     return true;
 }
@@ -36,7 +41,6 @@ F01 * F01::probe(IOService *provider, SInt32 *score)
 
     
     rmiBus = OSDynamicCast(RMIBus, provider);
-    
     if (!rmiBus) {
         IOLog("%s Could not get RMIBus instance\n", getName());
         return NULL;
@@ -182,27 +186,34 @@ bool F01::start(IOService* provider)
         return false;
     }
     
+    registerService();
+    
     return true;
 }
 
 void F01::publishProps()
 {
-    OSDictionary* deviceDict = new OSDictionary();
+    deviceDict = OSDictionary::withCapacity(3);
     deviceDict->setObject("Doze Interval", OSNumber::withNumber(device_control->doze_interval, 8));
     deviceDict->setObject("Doze Holdoff", OSNumber::withNumber(device_control->doze_holdoff, 8));
     deviceDict->setObject("Wakeup Threshold", OSNumber::withNumber(device_control->wakeup_threshold, 8));
 
     setProperty("Power Properties", deviceDict);
 
-    OSDictionary* propDict = new OSDictionary();
+    propDict = OSDictionary::withCapacity(9);
     propDict->setObject("Manufacturer ID", OSNumber::withNumber(properties->manufacturer_id, 8));
     propDict->setObject("Has LTS", OSBoolean::withBoolean(properties->has_lts));
     propDict->setObject("Has Adjustable Doze", OSBoolean::withBoolean(properties->has_adjustable_doze));
     propDict->setObject("Has Adjustable Doze Holdoff", OSBoolean::withBoolean(properties->has_adjustable_doze_holdoff));
-    propDict->setObject("Date of Manufacture", OSString::withCString(properties->dom));
+    
+    OSString* dom = OSString::withCString(properties->dom);
+    if (dom)
+        propDict->setObject("Date of Manufacture", dom);
 
     // It's null terminated and u8 is a byte, so I guess it's a string?
-    propDict->setObject("Product ID", OSString::withCString(reinterpret_cast<const char*>(properties->product_id)));
+    OSString* prodID = OSString::withCString(reinterpret_cast<const char*>(properties->product_id));
+    if (prodID)
+        propDict->setObject("Product ID", prodID);
     propDict->setObject("Product Info", OSNumber::withNumber(properties->productinfo, 16));
     propDict->setObject("Firmware ID", OSNumber::withNumber(properties->firmware_id, 32));
     propDict->setObject("Package ID", OSNumber::withNumber(properties->package_id, 32));
@@ -360,4 +371,25 @@ int F01::rmi_f01_read_properties()
     }
     
     return 0;
+}
+
+void F01::free() {
+    IOLog("F01 Free");
+//    rmiBus->close(this);
+//    if (deviceDict) {
+//        deviceDict->flushCollection();
+//        OSSafeReleaseNULL(deviceDict);
+//    }
+//
+//    if (propDict) {
+//        propDict->flushCollection();
+//        OSSafeReleaseNULL(propDict);
+//    }
+    
+//    OSSafeReleaseNULL(rmiBus);
+    clearDesc();
+    
+    if (properties) IOFree(properties, sizeof(f01_basic_properties));
+    if (device_control) IOFree(device_control, sizeof(f01_device_control));
+    super::free();
 }

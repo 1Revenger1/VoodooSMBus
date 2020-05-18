@@ -135,10 +135,9 @@ public:
     struct mapping_table_entry mapping_table[RMI_SMB2_MAP_SIZE];
     u8 table_index;
     
-    int rmi_register_function(struct rmi_function);
+    int rmi_register_function(rmi_function* fn);
     int rmi_smb_get_version();
 private:
-    OSDictionary* irqDict;
     void handleHostNotifyThreaded();
     void initialize();
 };

@@ -57,22 +57,27 @@ class RMIFunction : public IOService {
     OSDeclareDefaultStructors(RMIFunction)
     
 public:
-    virtual RMIFunction* probe(IOService *provider, SInt32 *score) override;
-    virtual bool start(IOService *provider) override;
-    virtual void stop(IOService *provider) override;
-    IOReturn virtual handleInterrupt();
-    int virtual functionIrq();
+//    virtual RMIFunction* probe(IOService *provider, SInt32 *score) override = 0;
+//    virtual bool start(IOService *provider) override = 0;
+//    virtual void stop(IOService *provider) override;
+//    IOReturn virtual handleInterrupt();
     
     inline void setFunctionDesc(rmi_function_descriptor *desc) {
         this->fn_descriptor = desc;
     }
     
-    inline void setBit(int bit) {
-        irq_mask |= 1 << bit;
+    inline void setMask(unsigned long irqMask) {
+        irq_mask = irqMask;
     }
     
     inline unsigned long getIRQ() {
         return irq_mask;
+    }
+    
+    inline void clearDesc() {
+        if(this->fn_descriptor)
+            IOFree(this->fn_descriptor, sizeof(rmi_function_descriptor));
+        return;
     }
     
 private:

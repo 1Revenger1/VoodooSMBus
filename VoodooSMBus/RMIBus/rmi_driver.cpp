@@ -18,26 +18,13 @@
 
 int rmi_driver_probe(RMIBus *dev)
 {
-    rmi_driver_data *data;
-    struct rmi_device_platform_data *pdata;
     int retval;
     
     IOLog("Starting probe\n");
     
 //    pdata = rmi_get_platform_data(rmi_dev);
     
-    void* ptr =
-        (IOMalloc(sizeof(struct rmi_driver_data)));
-    
-    memset(ptr, 0, sizeof(struct rmi_driver_data));
-    
-    data = reinterpret_cast<rmi_driver_data *>(ptr);
-    
-    if (!data)
-        return -ENOMEM;
-    
-    data->rmi_dev = dev;
-    dev->data = data;
+    dev->data->rmi_dev = dev;
     
     /*
      * Right before a warm boot, the sensor might be in some unusual state,
@@ -65,7 +52,7 @@ int rmi_driver_probe(RMIBus *dev)
     if (retval < 0)
         IOLog("RMI initial reset failed! Continuing in spite of this.\n");
     
-    retval = dev->read(PDT_PROPERTIES_LOCATION, &data->pdt_props);
+    retval = dev->read(PDT_PROPERTIES_LOCATION, &dev->data->pdt_props);
     if (retval < 0) {
         /*
          * we'll print out a warning and continue since
@@ -75,33 +62,19 @@ int rmi_driver_probe(RMIBus *dev)
                  PDT_PROPERTIES_LOCATION, retval);
     }
     
-    data->irq_mutex = IOLockAlloc();
-    data->enabled_mutex = IOLockAlloc();
-    
-    retval = rmi_probe_interrupts(data);
+    retval = rmi_probe_interrupts(dev->data);
     if (retval)
         goto err;
     
     // allocate device
-    
-    retval = rmi_init_functions(data);
-    if (retval)
-        goto err;
 
-    retval = rmi_enable_sensor(dev);
-    if (retval)
-        goto err_destroy_functions;
     
     return 0;
 //
 //err_disable_irq:
 //    rmi_disable_irq(dev, false);
-err_destroy_functions:
-    rmi_free_function_list(dev);
 err:
     IOLog("Could not probe");
-    IOLockFree(data->irq_mutex);
-    IOLockFree(data->enabled_mutex);
     return retval;
 }
 
@@ -199,8 +172,8 @@ int rmi_initial_reset(RMIBus *dev, void *ctx, const struct pdt_entry *pdt)
     int error;
     
     if (pdt->function_number == 0x01) {
-        u16 cmd_addr = pdt->page_start + pdt->command_base_addr;
-        u8 cmd_buf = RMI_DEVICE_RESET_CMD;
+//        u16 cmd_addr = pdt->page_start + pdt->command_base_addr;
+//        u8 cmd_buf = RMI_DEVICE_RESET_CMD;
         
         // Only send reset if there is no reset in transport (SMBus has one which just gets version)
 //        IOLog("Sending Reset\n");
@@ -407,32 +380,36 @@ static int rmi_create_function(RMIBus *rmi_dev,
     for (i = 0; i < fn->num_of_irqs; i++)
         set_bit(fn->irq_pos + i, fn->irq_mask);
     
-    error = rmi_dev->rmi_register_function(*fn);
+    error = rmi_dev->rmi_register_function(fn);
     if (error)
         return error;
     
+    // TODO: Why are these stored?
     if (pdt->function_number == 0x01)
         data->f01_container = fn;
     else if (pdt->function_number == 0x34)
         data->f34_container = fn;
+    // We don't need the function data anymore,
+    // just the descriptors stored in the Functions
+    else IOFree(fn, size);
     
     return RMI_SCAN_CONTINUE;
 }
 
 static int rmi_driver_process_config_requests(RMIBus *rmi_dev)
 {
-    OSObject *obj = NULL;
     RMIFunction *func;
     
     OSIterator* iter = rmi_dev->getClientIterator();
-    while ((obj = iter->getNextObject()) != NULL) {
-        func = reinterpret_cast<RMIFunction *>(obj);
+    while ((func = OSDynamicCast(RMIFunction, iter->getNextObject()))) {
         if (func && !func->start(rmi_dev)) {
             IOLogError("Could not start function %s\n", func->getName());
         }
         
         func = NULL;
     }
+    
+    OSSafeReleaseNULL(iter);
     
     return 0;
 }
@@ -459,13 +436,14 @@ int rmi_init_functions(rmi_driver_data *data)
     retval = rmi_scan_pdt(rmi_dev, &irq_count, rmi_create_function);
     if (retval < 0) {
         IOLogError("Function creation failed with code %d.\n", retval);
-        goto err_destroy_functions;
+        return retval;
     }
+    
+    return 0;
     
     if (!data->f01_container) {
         IOLogError("Missing F01 container!\n");
-        retval = -EINVAL;
-        goto err_destroy_functions;
+        return -EINVAL;
     }
     
     retval = rmi_dev->readBlock(
@@ -474,27 +452,17 @@ int rmi_init_functions(rmi_driver_data *data)
     
     if (retval < 0) {
         IOLogError("%s: Failed to read current IRQ mask.\n", __func__);
-        goto err_destroy_functions;
+        return retval;
     }
     
     return 0;
-    
-err_destroy_functions:
-    rmi_free_function_list(rmi_dev);
-    return retval;
 }
 
 void rmi_free_function_list(RMIBus *rmi_dev)
 {
-    struct rmi_function *fn, *tmp;
     struct rmi_driver_data *data = rmi_dev->data;
     
     IOLogDebug("Freeing function list\n");
-    
-    for(int i = data->functionListIndex - 1; i >= 0; i--) {
-//        IOFree(data->function_list[i], data->function_list[i]->size);
-        data->function_list[i] = NULL;
-    }
     
 //    IOFree(data->irq_memory, sizeof(data->irq_memory_size));
     data->irq_memory = NULL;
