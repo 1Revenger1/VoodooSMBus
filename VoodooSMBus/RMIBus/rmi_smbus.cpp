@@ -34,10 +34,10 @@ int RMIBus::blockWrite(u8 command, const u8 *buf, size_t len)
     return retval;
 }
 
-int RMIBus::write(u8 command, const u8 *buf) {
+int RMIBus::write(u8 command, const u8 buf) {
     int retval;
     
-    retval = device_nub->writeByteData(command, *buf);
+    retval = device_nub->writeByteData(command, buf);
     if (retval < 0) {
         IOLog("Failed to write byte to SMBus");
     }

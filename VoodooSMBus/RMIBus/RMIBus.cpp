@@ -22,7 +22,6 @@ bool RMIBus::init(OSDictionary *dictionary) {
     mapping_table_mutex = IOLockAlloc();
     data->irq_mutex = IOLockAlloc();
     data->enabled_mutex = IOLockAlloc();
-    
     return super::init(dictionary);
 }
 
@@ -33,6 +32,7 @@ RMIBus * RMIBus::probe(IOService *provider, SInt32 *score) {
     
     device_nub = OSDynamicCast(VoodooSMBusDeviceNub, provider);
     
+    IOLog("Recieving SMBus version: %d\n", rmi_smb_get_version());
     if (!device_nub) {
         IOLog("%s Could not et VoodooSMBus device nub instance\n", getName());
         return NULL;
@@ -40,7 +40,6 @@ RMIBus * RMIBus::probe(IOService *provider, SInt32 *score) {
     
     device_nub->setSlaveDeviceFlags(I2C_CLIENT_HOST_NOTIFY);
 
-//    IOLog("Recieving SMBus version: %d\n", rmi_smb_get_version());
     
     if (rmi_driver_probe(this)) {
         IOLog("Could not probe");
@@ -55,13 +54,9 @@ bool RMIBus::start(IOService *provider) {
         return false;
     int retval;
     
-    registerService();
-    
     retval = rmi_init_functions(data);
     if (retval)
         goto err;
-    
-    return true;
 
     retval = rmi_enable_sensor(this);
     if (retval)
@@ -70,6 +65,7 @@ bool RMIBus::start(IOService *provider) {
 //    provider->joinPMtree(this);
 //    registerPowerDriver(this, , unsigned long numberOfStates);
     
+    registerService();
     return true;
 err:
     IOLog("Could not start");
@@ -162,6 +158,7 @@ int RMIBus::rmi_register_function(rmi_function *fn) {
     
     if (!function || !function->init()) {
         IOLogError("Could not initialize function: %02X\n", fn->fd.function_number);
+        OSSafeReleaseNULL(function);
         return -ENODEV;
     }
     
@@ -194,6 +191,6 @@ int RMIBus::rmi_register_function(rmi_function *fn) {
         return -ENODEV;
     }
     
-    OSSafeReleaseNULL(function);
+//    OSSafeReleaseNULL(function);
     return 0;
 }

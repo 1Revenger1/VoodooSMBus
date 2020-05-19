@@ -20,8 +20,6 @@ int rmi_driver_probe(RMIBus *dev)
 {
     int retval;
     
-    IOLog("Starting probe\n");
-    
 //    pdata = rmi_get_platform_data(rmi_dev);
     
     dev->data->rmi_dev = dev;
@@ -172,19 +170,27 @@ int rmi_initial_reset(RMIBus *dev, void *ctx, const struct pdt_entry *pdt)
     int error;
     
     if (pdt->function_number == 0x01) {
-//        u16 cmd_addr = pdt->page_start + pdt->command_base_addr;
-//        u8 cmd_buf = RMI_DEVICE_RESET_CMD;
+        u16 cmd_addr = pdt->page_start + pdt->command_base_addr;
+        u8 cmd_buf = RMI_DEVICE_RESET_CMD;
+        
+        // TODO: Detect transport and call respective resets
+        // SMbus hardcoded for now
+        bool smbus = true;
+        
+        if (smbus) {
+            error = dev->rmi_smb_get_version();
+            if (error < 0) {
+                IOLog("Unable to reset");
+                return error;
+            }
+            return RMI_SCAN_DONE;
+        }
         
         // Only send reset if there is no reset in transport (SMBus has one which just gets version)
-//        IOLog("Sending Reset\n");
-//        error = dev->blockWrite(cmd_addr, &cmd_buf, 1);
-//        if (error) {
-//            IOLogError("Initial reset failed. Code = %d\n", error);
-//            return error;
-//        }
-        error = dev->rmi_smb_get_version();
-        if (error < 0) {
-            IOLog("Unable to reset");
+        IOLog("Sending Reset\n");
+        error = dev->blockWrite(cmd_addr, &cmd_buf, 1);
+        if (error) {
+            IOLogError("Initial reset failed. Code = %d\n", error);
             return error;
         }
         

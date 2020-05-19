@@ -36,10 +36,9 @@ F01 * F01::probe(IOService *provider, SInt32 *score)
     u16 ctrl_base_addr = fn_descriptor->control_base_addr;
     u8 temp, device_status;
     
-    if (!super::probe(provider, score))
-        return NULL;
+//    if (!super::probe(provider, score))
+//        return NULL;
 
-    
     rmiBus = OSDynamicCast(RMIBus, provider);
     if (!rmiBus) {
         IOLog("%s Could not get RMIBus instance\n", getName());
@@ -88,7 +87,7 @@ F01 * F01::probe(IOService *provider, SInt32 *score)
     device_control->ctrl0 |= RMI_F01_CTRL0_CONFIGURED_BIT;
     
     error = rmiBus->write(fn_descriptor->control_base_addr,
-                          &device_control->ctrl0);
+                          device_control->ctrl0);
     if (error) {
         IOLogError("Failed to write F01 control: %d\n", error);
         return NULL;
@@ -226,7 +225,7 @@ int F01::rmi_f01_config()
     int error;
     
     error = rmiBus->write(fn_descriptor->control_base_addr,
-                          &device_control->ctrl0);
+                          device_control->ctrl0);
     if (error) {
         IOLogError("Failed to write device_control register: %d\n", error);
         return error;
@@ -234,7 +233,7 @@ int F01::rmi_f01_config()
     
     if (properties->has_adjustable_doze) {
         error = rmiBus->write(doze_interval_addr,
-                              &device_control->doze_interval);
+                              device_control->doze_interval);
         if (error) {
             IOLogError("Failed to write doze interval: %d\n", error);
             return error;
@@ -252,7 +251,7 @@ int F01::rmi_f01_config()
     
     if (properties->has_adjustable_doze_holdoff) {
         error = rmiBus->write(doze_holdoff_addr,
-                              &device_control->doze_holdoff);
+                              device_control->doze_holdoff);
         if (error) {
             IOLogError("Failed to write doze holdoff: %d\n", error);
             return error;
@@ -373,6 +372,12 @@ int F01::rmi_f01_read_properties()
     return 0;
 }
 
+void F01::stop(IOService *provider) {
+    IOLog("F01 Stop");
+//    OSSafeReleaseNULL(rmiBus);
+    super::stop(provider);
+}
+
 void F01::free() {
     IOLog("F01 Free");
 //    rmiBus->close(this);
@@ -386,9 +391,9 @@ void F01::free() {
 //        OSSafeReleaseNULL(propDict);
 //    }
     
-//    OSSafeReleaseNULL(rmiBus);
     clearDesc();
     
+//    OSSafeReleaseNULL(rmiBus);
     if (properties) IOFree(properties, sizeof(f01_basic_properties));
     if (device_control) IOFree(device_control, sizeof(f01_device_control));
     super::free();
