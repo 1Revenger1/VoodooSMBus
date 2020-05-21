@@ -10,8 +10,6 @@
 #define F01_hpp
 
 #include <RMIBus.hpp>
-#include <IOKit/IOService.h>
-#include "rmi.h"
 
 #define RMI_PRODUCT_ID_LENGTH    10
 #define RMI_PRODUCT_INFO_LENGTH   2

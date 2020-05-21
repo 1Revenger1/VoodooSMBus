@@ -10,6 +10,7 @@
 #define types_h
 
 // types.h
+#include <IOKit/IOLib.h>
 
 #define __force
 
@@ -87,5 +88,13 @@ static inline u64 get_unaligned_le64(const void *p)
 }
 
 // end types.h
+
+static inline void bitmap_copy(unsigned long *dst, const unsigned long *src,
+                               unsigned int nbits)
+{
+    unsigned int len = BITS_TO_LONGS(nbits) * sizeof(unsigned long);
+    memcpy(dst, src, len);
+}
+
 
 #endif /* types_h */

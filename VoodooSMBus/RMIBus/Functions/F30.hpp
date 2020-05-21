@@ -9,7 +9,7 @@
 #ifndef F30_hpp
 #define F30_hpp
 
-#include "RMIBus.hpp"
+#include <RMIBus.hpp>
 
 #define RMI_F30_QUERY_SIZE            2
 
@@ -36,16 +36,16 @@
 #define RMI_F30_CTRL_MAX_REG_BLOCKS    11
 
 #define RMI_F30_CTRL_REGS_MAX_SIZE (RMI_F30_CTRL_MAX_BYTES        \
-+ 1                \
-+ RMI_F30_CTRL_MAX_BYTES    \
-+ RMI_F30_CTRL_MAX_BYTES    \
-+ RMI_F30_CTRL_MAX_BYTES    \
-+ 6                \
-+ RMI_F30_CTRL_MAX_REGS        \
-+ RMI_F30_CTRL_MAX_REGS        \
-+ RMI_F30_CTRL_MAX_BYTES    \
-+ 1                \
-+ 1)
+    + 1                \
+    + RMI_F30_CTRL_MAX_BYTES    \
+    + RMI_F30_CTRL_MAX_BYTES    \
+    + RMI_F30_CTRL_MAX_BYTES    \
+    + 6                \
+    + RMI_F30_CTRL_MAX_REGS        \
+    + RMI_F30_CTRL_MAX_REGS        \
+    + RMI_F30_CTRL_MAX_BYTES    \
+    + 1                \
+    + 1)
 
 #define TRACKSTICK_RANGE_START        3
 #define TRACKSTICK_RANGE_END        6
@@ -56,7 +56,16 @@ struct rmi_f30_ctrl_data {
     uint8_t *regs;
 };
 
-struct f30_data {
+class F30 : public RMIFunction {
+    OSDeclareDefaultStructors(F30)
+    
+public:
+    F30 * probe(IOService *provider, SInt32 *score) override;
+    bool start(IOService *provider) override;
+    
+private:
+    RMIBus *rmiBus;
+    
     /* Query Data */
     bool has_extended_pattern;
     bool has_mappable_buttons;
@@ -70,7 +79,7 @@ struct f30_data {
     uint8_t register_count;
     
     /* Control Register Data */
-    struct rmi_f30_ctrl_data ctrl[RMI_F30_CTRL_MAX_REG_BLOCKS];
+    rmi_f30_ctrl_data ctrl[RMI_F30_CTRL_MAX_REG_BLOCKS];
     uint8_t ctrl_regs[RMI_F30_CTRL_REGS_MAX_SIZE];
     uint32_t ctrl_regs_size;
     
@@ -79,8 +88,14 @@ struct f30_data {
     
     struct input_dev *input;
     
-    struct rmi_function *f03;
+    // TODO: F03 for trackstick/trackstick buttons
+    // struct rmi_function *f03;
     bool trackstick_buttons;
+    
+    int rmi_f30_initialize();
+    void rmi_f30_set_ctrl_data(rmi_f30_ctrl_data *ctrl,
+                               int *ctrl_addr, int len, u8 **reg);
+    int rmi_f30_read_control_parameters();
 };
 
 #endif /* F30_hpp */

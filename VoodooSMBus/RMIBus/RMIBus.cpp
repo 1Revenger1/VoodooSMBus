@@ -138,6 +138,15 @@ int RMIBus::rmi_register_function(rmi_function *fn) {
         case 0x01:
             function = OSDynamicCast(RMIFunction, OSTypeAlloc(F01));
             break;
+        case 0x11:
+            function = OSDynamicCast(RMIFunction, OSTypeAlloc(F11));
+            break;
+        case 0x30:
+            function = OSDynamicCast(RMIFunction, OSTypeAlloc(F30));
+            break;
+        case 0x34:
+            function = OSDynamicCast(RMIFunction, OSTypeAlloc(F34));
+            break;
         case 0x54:
             IOLog("F54 not implemented - Debug function\n");
             return 0;
@@ -166,6 +175,7 @@ int RMIBus::rmi_register_function(rmi_function *fn) {
     
     function->setFunctionDesc(desc);
     function->setMask(fn->irq_mask[0]);
+    function->setIrqPos(fn->irq_pos);
     
     SInt32 score = 2046;
     

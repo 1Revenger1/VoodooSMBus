@@ -320,37 +320,6 @@ static void rmi_driver_copy_pdt_to_fd(const struct pdt_entry *pdt,
     fd->function_version = pdt->function_version;
 }
 
-// bits.h
-
-#define BITS_PER_LONG       (__CHAR_BIT__ * __SIZEOF_LONG__)
-#define BIT_MASK(nr)        ((1) << ((nr) % BITS_PER_LONG))
-#define BIT_WORD(nr)        ((nr) / BITS_PER_LONG)
-
-// asm-generic/bitops/atomic.h
-/**
- * set_bit - Atomically set a bit in memory
- * @nr: the bit to set
- * @addr: the address to start counting from
- *
- * This function is atomic and may not be reordered.  See __set_bit()
- * if you do not require the atomic guarantees.
- *
- * Note: there are no guarantees that this function will not be reordered
- * on non x86 architectures, so if you are writing portable code,
- * make sure not to rely on its reordering guarantees.
- *
- * Note that @nr may be almost arbitrarily large; this function is not
- * restricted to acting on a single-word quantity.
- */
-static inline void set_bit(int nr, volatile unsigned long *addr)
-{
-    unsigned long mask = static_cast<unsigned long>(1) << (nr % BITS_PER_LONG);
-    unsigned long *p = ((unsigned long *)addr) + BIT_WORD(nr);
-    OSBitOrAtomic64(mask, p);
-}
-
-// end atomic.h
-
 static int rmi_create_function(RMIBus *rmi_dev,
                                void *ctx, const struct pdt_entry *pdt)
 {
@@ -420,6 +389,53 @@ static int rmi_driver_process_config_requests(RMIBus *rmi_dev)
     return 0;
 }
 
+/*
+ * This isn't from rmi_driver
+ * Just getting the mask from all the started functions
+ */
+static unsigned long rmi_driver_get_mask(RMIBus *rmiBus)
+{
+    RMIFunction *func;
+    unsigned long mask = 0;
+    
+    OSIterator* iter = rmiBus->getClientIterator();
+    while ((func = OSDynamicCast(RMIFunction, iter->getNextObject()))) {
+        unsigned long funcMask = func->getIRQ();
+        mask = OSBitOrAtomic64(mask, &funcMask);
+        
+        func = NULL;
+    }
+    
+    return mask;
+}
+
+static int rmi_driver_set_irq_bits(RMIBus *rmi_dev)
+{
+    int error = 0;
+    unsigned long mask = rmi_driver_get_mask(rmi_dev);
+    struct rmi_driver_data *data = rmi_dev->data;
+    
+    IOLockLock(data->irq_mutex);
+    *data->new_irq_mask = OSBitOrAtomic64(*data->current_irq_mask, &mask);
+    
+    error = rmi_dev->blockWrite(data->f01_container->fd.control_base_addr + 1,
+                                reinterpret_cast<u8*>(data->new_irq_mask), data->num_of_irq_regs);
+    if (error < 0) {
+        IOLogError("%s: Failed to change enabled intterupts!", __func__);
+        goto error_unlock;
+    }
+    
+    
+    bitmap_copy(data->current_irq_mask, data->new_irq_mask,
+                data->num_of_irq_regs);
+    
+    *data->fn_irq_bits = OSBitOrAtomic64(*data->fn_irq_bits, &mask);
+    
+error_unlock:
+    IOLockUnlock(data->irq_mutex);
+    return error;
+}
+
 int rmi_enable_sensor(RMIBus *rmi_dev)
 {
     int retval = 0;
@@ -428,8 +444,13 @@ int rmi_enable_sensor(RMIBus *rmi_dev)
     if (retval < 0)
         return retval;
     
-    return 0;
 //    return rmi_process_interrupt_requests(rmi_dev);
+    
+    retval = rmi_driver_set_irq_bits(rmi_dev);
+    if (retval < 0)
+        return retval;
+
+    return 0;
 }
 
 int rmi_init_functions(rmi_driver_data *data)
