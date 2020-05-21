@@ -112,14 +112,6 @@ void RMIBus::handleHostNotify() {
 void RMIBus::stop(IOService *provider) {
     PMstop();
     
-    OSIterator *iter = getClientIterator();
-    RMIFunction *cast;
-
-    while ((cast = OSDynamicCast(RMIFunction, iter->getNextObject()))) {
-        cast->detach(this);
-    }
-    
-    OSSafeReleaseNULL(iter);
     super::stop(provider);
 }
 
@@ -129,9 +121,7 @@ void RMIBus::initialize() {
 }
 
 void RMIBus::free() {
-    
     rmi_free_function_list(this);
-    
     
     IOLockFree(data->enabled_mutex);
     IOLockFree(data->irq_mutex);
@@ -191,6 +181,10 @@ int RMIBus::rmi_register_function(rmi_function *fn) {
         return -ENODEV;
     }
     
-//    OSSafeReleaseNULL(function);
+    // For some reason trying to release it and detatch in ::stop
+    // just doesn't work. An iterator over the dictionary and getClientIterator()
+    // just returns null when we try to iterate. Releasing here seems to work fine
+    // as jank as it seems.
+    OSSafeReleaseNULL(function);
     return 0;
 }

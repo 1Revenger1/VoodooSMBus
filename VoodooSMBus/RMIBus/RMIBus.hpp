@@ -126,9 +126,9 @@ public:
     // rmi_read_block
     int readBlock (u16 rmiaddr, u8 *databuff, size_t len);
     // rmi_write
-    int write(u8 command, const u8 buf);
+    int write(u16 rmiaddr, u8 *buf);
     // rmi_block_write
-    int blockWrite(u8 command, const u8 *buf, size_t len);
+    int blockWrite(u16 rmiaddr, u8 *buf, size_t len);
     
     IOLock *page_mutex;
     IOLock *mapping_table_mutex;

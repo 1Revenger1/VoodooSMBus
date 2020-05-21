@@ -126,7 +126,6 @@ class F01 : public RMIFunction {
 public:
     bool init(OSDictionary *dictionary) override;
     F01 * probe(IOService *provider, SInt32 *score) override;
-    void stop(IOService *provider) override;
     bool start(IOService *provider) override;
     void free() override;
     

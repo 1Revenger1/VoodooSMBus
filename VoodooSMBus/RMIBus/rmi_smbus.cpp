@@ -22,29 +22,6 @@ int RMIBus::rmi_smb_get_version()
     return retval + 1;
 }
 
-int RMIBus::blockWrite(u8 command, const u8 *buf, size_t len)
-{
-    int retval;
-    
-    retval = device_nub->writeBlockData(command, len, buf);
-    if (retval < 0) {
-        IOLog("Failed to write block to SMBus");
-    }
-    
-    return retval;
-}
-
-int RMIBus::write(u8 command, const u8 buf) {
-    int retval;
-    
-    retval = device_nub->writeByteData(command, buf);
-    if (retval < 0) {
-        IOLog("Failed to write byte to SMBus");
-    }
-    
-    return retval;
-}
-
 /*
  * The function to get command code for smbus operations and keeps
  * records to the driver mapping table
@@ -81,9 +58,8 @@ static int rmi_smb_get_command_code(RMIBus *dev,
     new_map.rmiaddr = cpu_to_le16(rmiaddr);
     new_map.readcount = bytecount;
     new_map.flags = !isread ? RMI_SMB2_MAP_FLAGS_WE : 0;
-    
-    retval = dev->blockWrite(i + 0x80,
-                            reinterpret_cast<const u8*>(&new_map), sizeof(new_map));
+    retval = dev->device_nub->writeBlockData(i + 0x80,
+                            sizeof(new_map), reinterpret_cast<u8*>(&new_map));
     if (retval < 0) {
         /*
          * if not written to device mapping table
@@ -142,5 +118,44 @@ exit:
 
 int RMIBus::read(u16 rmiaddr, u8 *databuff) {
     return readBlock(rmiaddr, databuff, 1);
+}
+
+int RMIBus::blockWrite(u16 rmiaddr, u8 *buf, size_t len)
+{
+    int retval = 0;
+    u8 commandcode;
+    int cur_len = (int)len;
+    
+    IOLockLock(page_mutex);
+    
+    while (cur_len > 0) {
+        /*
+         * break into 32 bytes chunks to write get command code
+         */
+        int block_len = min(cur_len, SMB_MAX_COUNT);
+        
+        retval = rmi_smb_get_command_code(this, rmiaddr, block_len,
+                                          false, &commandcode);
+        
+        if (retval < 0)
+            goto exit;
+        
+        retval = device_nub->writeBlockData(commandcode,
+                                            block_len, buf);
+        
+        if (retval < 0)
+            goto exit;
+        
+        cur_len -= SMB_MAX_COUNT;
+        buf += SMB_MAX_COUNT;
+    }
+    
+exit:
+    IOLockUnlock(page_mutex);
+    return retval;
+}
+
+int RMIBus::write(u16 rmiaddr, u8 *buf) {
+    return blockWrite(rmiaddr, buf, 1);
 }
 

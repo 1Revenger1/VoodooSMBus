@@ -73,6 +73,8 @@ F01 * F01::probe(IOService *provider, SInt32 *score)
             break;
     }
     
+    IOLog("F01 control: F%X\n", device_control->ctrl0);
+    
     /*
      * Sleep mode might be set as a hangover from a system crash or
      * reboot without power cycle.  If so, clear it so the sensor
@@ -87,7 +89,7 @@ F01 * F01::probe(IOService *provider, SInt32 *score)
     device_control->ctrl0 |= RMI_F01_CTRL0_CONFIGURED_BIT;
     
     error = rmiBus->write(fn_descriptor->control_base_addr,
-                          device_control->ctrl0);
+                          &device_control->ctrl0);
     if (error) {
         IOLogError("Failed to write F01 control: %d\n", error);
         return NULL;
@@ -185,8 +187,6 @@ bool F01::start(IOService* provider)
         return false;
     }
     
-    registerService();
-    
     return true;
 }
 
@@ -224,8 +224,10 @@ int F01::rmi_f01_config()
 {
     int error;
     
+    IOLog("Start F01");
+    
     error = rmiBus->write(fn_descriptor->control_base_addr,
-                          device_control->ctrl0);
+                          &device_control->ctrl0);
     if (error) {
         IOLogError("Failed to write device_control register: %d\n", error);
         return error;
@@ -233,7 +235,7 @@ int F01::rmi_f01_config()
     
     if (properties->has_adjustable_doze) {
         error = rmiBus->write(doze_interval_addr,
-                              device_control->doze_interval);
+                              &device_control->doze_interval);
         if (error) {
             IOLogError("Failed to write doze interval: %d\n", error);
             return error;
@@ -251,7 +253,7 @@ int F01::rmi_f01_config()
     
     if (properties->has_adjustable_doze_holdoff) {
         error = rmiBus->write(doze_holdoff_addr,
-                              device_control->doze_holdoff);
+                              &device_control->doze_holdoff);
         if (error) {
             IOLogError("Failed to write doze holdoff: %d\n", error);
             return error;
@@ -352,7 +354,9 @@ int F01::rmi_f01_read_properties()
                 return ret;
             }
             
-            properties->package_id = get_unaligned_le64(queries);
+            // Truncates in F01.c in Linux as well, no clue why.
+            // Casting to remove warning
+            properties->package_id = (u32) get_unaligned_le64(queries);
             prod_info_addr++;
         }
         
@@ -372,28 +376,10 @@ int F01::rmi_f01_read_properties()
     return 0;
 }
 
-void F01::stop(IOService *provider) {
-    IOLog("F01 Stop");
-//    OSSafeReleaseNULL(rmiBus);
-    super::stop(provider);
-}
-
 void F01::free() {
     IOLog("F01 Free");
-//    rmiBus->close(this);
-//    if (deviceDict) {
-//        deviceDict->flushCollection();
-//        OSSafeReleaseNULL(deviceDict);
-//    }
-//
-//    if (propDict) {
-//        propDict->flushCollection();
-//        OSSafeReleaseNULL(propDict);
-//    }
-    
     clearDesc();
-    
-//    OSSafeReleaseNULL(rmiBus);
+
     if (properties) IOFree(properties, sizeof(f01_basic_properties));
     if (device_control) IOFree(device_control, sizeof(f01_device_control));
     super::free();

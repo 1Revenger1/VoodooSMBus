@@ -17,12 +17,12 @@ struct rmi_function;
 /**
  * struct rmi_function_descriptor - RMI function base addresses
  *
- * @query_base_addr: The RMI Query base address
- * @command_base_addr: The RMI Command base address
- * @control_base_addr: The RMI Control base address
- * @data_base_addr: The RMI Data base address
- * @interrupt_source_count: The number of irqs this RMI function needs
- * @function_number: The RMI function number
+ * @ query_base_addr: The RMI Query base address
+ * @ command_base_addr: The RMI Command base address
+ * @ control_base_addr: The RMI Control base address
+ * @ data_base_addr: The RMI Data base address
+ * @ interrupt_source_count: The number of irqs this RMI function needs
+ * @ function_number: The RMI function number
  *
  * This struct is used when iterating the Page Description Table. The addresses
  * are 16-bit values to include the current page address.
@@ -57,11 +57,6 @@ class RMIFunction : public IOService {
     OSDeclareDefaultStructors(RMIFunction)
     
 public:
-//    virtual RMIFunction* probe(IOService *provider, SInt32 *score) override = 0;
-//    virtual bool start(IOService *provider) override = 0;
-//    virtual void stop(IOService *provider) override;
-//    IOReturn virtual handleInterrupt();
-    
     inline void setFunctionDesc(rmi_function_descriptor *desc) {
         this->fn_descriptor = desc;
     }

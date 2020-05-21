@@ -58,8 +58,6 @@ bool VoodooSMBusControllerDriver::start(IOService *provider) {
         return false;
     }
     
-    pci_device->setBusMasterEnable(true);
-    pci_device->setMemoryEnable(true);
     pci_device->setIOEnable(true);
     
     uint32_t host_config = pci_device->configRead8(SMBHSTCFG);
