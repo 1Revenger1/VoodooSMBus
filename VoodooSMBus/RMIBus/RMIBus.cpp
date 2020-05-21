@@ -145,6 +145,7 @@ int RMIBus::rmi_register_function(rmi_function *fn) {
             function = OSDynamicCast(RMIFunction, OSTypeAlloc(F30));
             break;
         case 0x34:
+            return 0;
             function = OSDynamicCast(RMIFunction, OSTypeAlloc(F34));
             break;
         case 0x54:

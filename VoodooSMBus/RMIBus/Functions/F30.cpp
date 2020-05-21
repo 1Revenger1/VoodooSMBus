@@ -27,7 +27,10 @@ F30 * F30::probe(IOService *provider, SInt32 *score)
     return this;
 }
 
-bool F30::start(IOService *provider) {
+bool F30::start(IOService *provider)
+{
+    if (!super::start(provider))
+        return false;
     // TODO: Either find F03 for trackstick button
     // or just send buttons in attention
     
@@ -39,6 +42,12 @@ bool F30::start(IOService *provider) {
                    __func__, fn_descriptor->control_base_addr, error);
     
     return error == 0;
+}
+
+void F30::free()
+{
+    clearDesc();
+    super::free();
 }
 
 int F30::rmi_f30_initialize()

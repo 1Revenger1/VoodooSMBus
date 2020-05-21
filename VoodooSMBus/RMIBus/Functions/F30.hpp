@@ -62,6 +62,7 @@ class F30 : public RMIFunction {
 public:
     F30 * probe(IOService *provider, SInt32 *score) override;
     bool start(IOService *provider) override;
+    void free() override;
     
 private:
     RMIBus *rmiBus;

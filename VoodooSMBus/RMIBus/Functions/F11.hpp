@@ -537,6 +537,16 @@ public:
 private:
     RMIBus *rmiBus;
     f11_data *data;
+    
+    OSDictionary *absProps;
+    OSDictionary *gestProps;
+    OSDictionary *penProps;
+    OSDictionary *tuningProps;
+    OSDictionary *tuningProps2;
+    OSDictionary *jitterProps;
+    OSDictionary *miscProps;
+    OSDictionary *sizeProps;
+    
     int rmi_f11_initialize();
     int rmi_f11_get_query_parameters(f11_2d_sensor_queries *sensor_query,
                                       u16 query_base_addr);
