@@ -80,7 +80,6 @@ public:
     int rmi_smb_get_version();
 private:
     void handleHostNotifyThreaded();
-    void initialize();
 };
     
 #endif /* RMIBus_h */

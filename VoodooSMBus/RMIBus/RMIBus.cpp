@@ -156,11 +156,6 @@ void RMIBus::stop(IOService *provider) {
     super::stop(provider);
 }
 
-void RMIBus::initialize() {
-        
-    
-}
-
 void RMIBus::free() {
     rmi_free_function_list(this);
     
