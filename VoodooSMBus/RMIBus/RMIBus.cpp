@@ -99,8 +99,6 @@ void RMIBus::handleHostNotifyThreaded()
     mask = data->irq_status & data->fn_irq_bits;
     IOLockUnlock(data->irq_mutex);
     
-    IOLog("Interrupt Threaded: %lX\n", mask);
-    
     OSIterator* iter = OSCollectionIterator::withCollection(functions);
     
     while (mask) {
