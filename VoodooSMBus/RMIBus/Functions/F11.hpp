@@ -11,6 +11,7 @@
 
 #include "../RMI_2D_Sensor.hpp"
 #include <RMIBus.hpp>
+#include "../../../Dependencies/VoodooI2C/Multitouch Support/VoodooI2CMultitouchInterface.hpp"
 
 /*
  *  Aren't we glad that header files exist?
@@ -495,19 +496,40 @@ enum f11_finger_state {
     F11_RESERVED    = 0x03
 };
 
-/** Data pertaining to F11 in general.  For per-sensor data, see struct
- * f11_2d_sensor.
- *
- * @dev_query - F11 device specific query registers.
- * @dev_controls - F11 device specific control registers.
- * @dev_controls_mutex - lock for the control registers.
- * @rezero_wait_ms - if nonzero, upon resume we will wait this many
- * milliseconds before rezeroing the sensor(s).  This is useful in systems with
- * poor electrical behavior on resume, where the initial calibration of the
- * sensor(s) coming out of sleep state may be bogus.
- * @sensors - per sensor data structures.
- */
-struct f11_data {
+class F11 : public RMIFunction {
+    OSDeclareDefaultStructors(F11)
+    
+public:
+    bool init(OSDictionary *dictionary) override;
+    bool attach(IOService *provider) override;
+    bool start(IOService *provider) override;
+    void stop(IOService *provider) override;
+    void free() override;
+    
+private:
+    RMIBus *rmiBus;
+    OSDictionary *absProps;
+    OSDictionary *gestProps;
+    OSDictionary *penProps;
+    OSDictionary *tuningProps;
+    OSDictionary *tuningProps2;
+    OSDictionary *jitterProps;
+    OSDictionary *miscProps;
+    OSDictionary *sizeProps;
+    VoodooI2CMultitouchInterface *mt_interface;
+    
+    /** Data pertaining to F11 in general.  For per-sensor data, see struct
+    * f11_2d_sensor.
+    *
+    * @dev_query - F11 device specific query registers.
+    * @dev_controls - F11 device specific control registers.
+    * @dev_controls_mutex - lock for the control registers.
+    * @rezero_wait_ms - if nonzero, upon resume we will wait this many
+    * milliseconds before rezeroing the sensor(s).  This is useful in systems with
+    * poor electrical behavior on resume, where the initial calibration of the
+    * sensor(s) coming out of sleep state may be bogus.
+    * @sensors - per sensor data structures.
+    */
     bool has_query9;
     bool has_query11;
     bool has_query12;
@@ -523,30 +545,9 @@ struct f11_data {
     struct rmi_2d_sensor_platform_data sensor_pdata;
     unsigned long *abs_mask;
     unsigned long *rel_mask;
-};
-
-class F11 : public RMIFunction {
-    OSDeclareDefaultStructors(F11)
-    
-public:
-    bool init(OSDictionary *dictionary) override;
-    F11 * probe(IOService *provider, SInt32 *score) override;
-    bool start(IOService *provider) override;
-    void free() override;
-    
-private:
-    RMIBus *rmiBus;
-    f11_data *data;
-    
-    OSDictionary *absProps;
-    OSDictionary *gestProps;
-    OSDictionary *penProps;
-    OSDictionary *tuningProps;
-    OSDictionary *tuningProps2;
-    OSDictionary *jitterProps;
-    OSDictionary *miscProps;
-    OSDictionary *sizeProps;
-    
+       
+    bool publishMultitouchInterface();
+    void unpublishMultitouchInterface();
     int rmi_f11_initialize();
     int rmi_f11_get_query_parameters(f11_2d_sensor_queries *sensor_query,
                                       u16 query_base_addr);

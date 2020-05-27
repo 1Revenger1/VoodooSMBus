@@ -30,14 +30,11 @@ bool F01::init(OSDictionary *dictionary)
     return true;
 }
 
-F01 * F01::probe(IOService *provider, SInt32 *score)
+bool F01::attach(IOService *provider)
 {
     int error;
     u16 ctrl_base_addr = fn_descriptor->control_base_addr;
     u8 temp, device_status;
-    
-//    if (!super::probe(provider, score))
-//        return NULL;
 
     rmiBus = OSDynamicCast(RMIBus, provider);
     if (!rmiBus) {
@@ -56,7 +53,7 @@ F01 * F01::probe(IOService *provider, SInt32 *score)
                          &device_control->ctrl0);
     if (error) {
         IOLogError("Failed to read F01 control: %d\n", error);
-        return NULL;
+        return false;
     }
     
     // Possible force this to be off to always allow sleep?
@@ -99,13 +96,13 @@ F01 * F01::probe(IOService *provider, SInt32 *score)
     error = rmiBus->read(fn_descriptor->data_base_addr + 1, &temp);
     if (error < 0) {
         IOLogError("Failed to read Interrupt Status.\n");
-        return NULL;
+        return false;
     }
     
     error = rmi_f01_read_properties();
     if (error < 0) {
         IOLogError("Failed to read F01 properties.\n");
-        return NULL;
+        return false;
     }
     
     IOLog("Found RMI device, manufacturer: %s, product: %s, fw id: %d\n",
@@ -126,7 +123,7 @@ F01 * F01::probe(IOService *provider, SInt32 *score)
         if (error) {
             IOLogError("Failed to read F01 doze interval register: %d\n",
                     error);
-            return NULL;
+            return false;
         }
         
         wakeup_threshold_addr = ctrl_base_addr;
@@ -137,7 +134,7 @@ F01 * F01::probe(IOService *provider, SInt32 *score)
         if (error < 0) {
             IOLogError("Failed to read F01 wakeup threshold register: %d\n",
                     error);
-            return NULL;
+            return false;
         }
     }
     
@@ -153,25 +150,25 @@ F01 * F01::probe(IOService *provider, SInt32 *score)
         if (error) {
             IOLogError("Failed to read F01 doze holdoff register: %d\n",
                     error);
-            return NULL;
+            return false;
         }
     }
     
     error = rmiBus->read(fn_descriptor->data_base_addr, &device_status);
     if (error < 0) {
         IOLogError("Failed to read device status: %d\n", error);
-        return NULL;
+        return false;
     }
     
     if (RMI_F01_STATUS_UNCONFIGURED(device_status)) {
         IOLogError("Device was reset during configuration process, status: %#02x!\n",
                 RMI_F01_STATUS_CODE(device_status));
-        return NULL;
+        return false;
     }
-    
+        
     publishProps();
-
-    return this;
+    
+    return super::attach(provider);
 }
 
 bool F01::start(IOService* provider)
@@ -187,12 +184,30 @@ bool F01::start(IOService* provider)
         return false;
     }
     
+    registerService();
     return true;
 }
+
+void F01::stop(IOService *provider)
+{
+    super::stop(provider);
+}
+
+void F01::free()
+{
+    IOLog("F01 Free");
+    clearDesc();
+
+    if (properties) IOFree(properties, sizeof(f01_basic_properties));
+    if (device_control) IOFree(device_control, sizeof(f01_device_control));
+    super::free();
+}
+
 
 void F01::publishProps()
 {
     deviceDict = OSDictionary::withCapacity(3);
+    if (!deviceDict) return;
     deviceDict->setObject("Doze Interval", OSNumber::withNumber(device_control->doze_interval, 8));
     deviceDict->setObject("Doze Holdoff", OSNumber::withNumber(device_control->doze_holdoff, 8));
     deviceDict->setObject("Wakeup Threshold", OSNumber::withNumber(device_control->wakeup_threshold, 8));
@@ -200,6 +215,7 @@ void F01::publishProps()
     setProperty("Power Properties", deviceDict);
 
     propDict = OSDictionary::withCapacity(9);
+    if (!propDict) return;
     propDict->setObject("Manufacturer ID", OSNumber::withNumber(properties->manufacturer_id, 8));
     propDict->setObject("Has LTS", OSBoolean::withBoolean(properties->has_lts));
     propDict->setObject("Has Adjustable Doze", OSBoolean::withBoolean(properties->has_adjustable_doze));
@@ -223,8 +239,6 @@ void F01::publishProps()
 int F01::rmi_f01_config()
 {
     int error;
-    
-    IOLog("Start F01");
     
     error = rmiBus->write(fn_descriptor->control_base_addr,
                           &device_control->ctrl0);
@@ -374,13 +388,4 @@ int F01::rmi_f01_read_properties()
     }
     
     return 0;
-}
-
-void F01::free() {
-    IOLog("F01 Free");
-    clearDesc();
-
-    if (properties) IOFree(properties, sizeof(f01_basic_properties));
-    if (device_control) IOFree(device_control, sizeof(f01_device_control));
-    super::free();
 }

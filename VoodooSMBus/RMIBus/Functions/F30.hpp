@@ -60,7 +60,7 @@ class F30 : public RMIFunction {
     OSDeclareDefaultStructors(F30)
     
 public:
-    F30 * probe(IOService *provider, SInt32 *score) override;
+    bool attach(IOService *provider) override;
     bool start(IOService *provider) override;
     void free() override;
     

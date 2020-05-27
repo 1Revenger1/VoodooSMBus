@@ -18,6 +18,8 @@ bool RMIBus::init(OSDictionary *dictionary) {
     
     if (!data) return false;
     
+    functions = OSSet::withCapacity(5);
+    
     page_mutex = IOLockAlloc();
     mapping_table_mutex = IOLockAlloc();
     data->irq_mutex = IOLockAlloc();
@@ -111,7 +113,15 @@ void RMIBus::handleHostNotify() {
 
 void RMIBus::stop(IOService *provider) {
     PMstop();
+    OSIterator *iter = OSCollectionIterator::withCollection(functions);
     
+    while (RMIFunction *func = OSDynamicCast(RMIFunction, iter->getNextObject())) {
+        func->detach(this);
+        func->stop(this);
+    }
+    
+    functions->flushCollection();
+    OSSafeReleaseNULL(iter);
     super::stop(provider);
 }
 
@@ -128,6 +138,7 @@ void RMIBus::free() {
     IOLockFree(page_mutex);
     IOLockFree(mapping_table_mutex);
     OSSafeReleaseNULL(device_nub);
+    OSSafeReleaseNULL(functions);
     super::free();
 }
 
@@ -178,24 +189,18 @@ int RMIBus::rmi_register_function(rmi_function *fn) {
     function->setMask(fn->irq_mask[0]);
     function->setIrqPos(fn->irq_pos);
     
-    SInt32 score = 2046;
-    
-    if (!function->probe(this, &score)) {
-        IOLogError("Probe failed for function: %02X\n", fn->fd.function_number);
-        OSSafeReleaseNULL(function);
-        return -ENODEV;
-    }
-    
     if (!function->attach(this)) {
         IOLogError("Function %02X could not attach\n", fn->fd.function_number);
         OSSafeReleaseNULL(function);
         return -ENODEV;
     }
     
-    // For some reason trying to release it and detatch in ::stop
-    // just doesn't work. An iterator over the dictionary and getClientIterator()
-    // just returns null when we try to iterate. Releasing here seems to work fine
-    // as jank as it seems.
+    functions->setObject(function);
+    
+    // For some reason we need to free here otherwise unloading doesn't work.
+    // It still is retained by the dictionary and kernel.
+    // so it's *probably* fine? Freeing in ::stop causes a page fault
+    // TODO: Sanity Check (please ;-;)
     OSSafeReleaseNULL(function);
     return 0;
 }

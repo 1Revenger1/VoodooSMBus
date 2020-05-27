@@ -21,7 +21,6 @@ class RMIFunction;
 #include "rmi_driver.hpp"
 #include "rmi_smbus.hpp"
 
-
 #include <F01.hpp>
 #include <F11.hpp>
 #include <F30.hpp>
@@ -69,6 +68,7 @@ public:
     
     IOLock *page_mutex;
     IOLock *mapping_table_mutex;
+    OSSet *functions;
     struct mapping_table_entry mapping_table[RMI_SMB2_MAP_SIZE];
     u8 table_index;
     

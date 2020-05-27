@@ -11,20 +11,22 @@
 OSDefineMetaClassAndStructors(F30, RMIFunction)
 #define super IOService
 
-F30 * F30::probe(IOService *provider, SInt32 *score)
+bool F30::attach(IOService *provider)
 {
     rmiBus = OSDynamicCast(RMIBus, provider);
     if (!rmiBus) {
         IOLogError("F30: No provider.\n");
-        return NULL;
+        return false;
     }
     
     int retval = rmi_f30_initialize();
     
     if (retval < 0)
-        return NULL;
+        return false;
     
-    return this;
+    super::attach(provider);
+    
+    return true;
 }
 
 bool F30::start(IOService *provider)
@@ -37,11 +39,15 @@ bool F30::start(IOService *provider)
     int error = rmiBus->blockWrite(fn_descriptor->control_base_addr,
                                    ctrl_regs, ctrl_regs_size);
     
-    if (error)
+    if (error) {
         IOLogError("%s: Could not write control registers at 0x%x: %d\n",
                    __func__, fn_descriptor->control_base_addr, error);
+        return false;;
+    }
     
-    return error == 0;
+    registerService();
+    
+    return true;
 }
 
 void F30::free()
@@ -124,7 +130,7 @@ int F30::rmi_f30_initialize()
                               sizeof(u8), &ctrl_reg);
     
     ctrl_regs_size = (uint32_t) (ctrl_reg -
-        ctrl_regs ?: RMI_F30_CTRL_REGS_MAX_SIZE);
+        ctrl_regs) ?: RMI_F30_CTRL_REGS_MAX_SIZE;
     
     error = rmi_f30_read_control_parameters();
     if (error) {

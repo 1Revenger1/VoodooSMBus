@@ -377,11 +377,9 @@ static int rmi_driver_process_config_requests(RMIBus *rmi_dev)
     
     OSIterator* iter = rmi_dev->getClientIterator();
     while ((func = OSDynamicCast(RMIFunction, iter->getNextObject()))) {
-        if (func && !func->start(rmi_dev)) {
+        if (func && !func->start(rmi_dev))
             IOLogError("Could not start function %s\n", func->getName());
-        }
-        
-        func = NULL;
+
     }
     
     OSSafeReleaseNULL(iter);
@@ -393,7 +391,7 @@ static int rmi_driver_process_config_requests(RMIBus *rmi_dev)
  * This isn't from rmi_driver
  * Just getting the mask from all the started functions
  */
-static unsigned long rmi_driver_get_mask(RMIBus *rmiBus)
+static unsigned long getMask(RMIBus *rmiBus)
 {
     RMIFunction *func;
     unsigned long mask = 0;
@@ -401,10 +399,11 @@ static unsigned long rmi_driver_get_mask(RMIBus *rmiBus)
     OSIterator* iter = rmiBus->getClientIterator();
     while ((func = OSDynamicCast(RMIFunction, iter->getNextObject()))) {
         unsigned long funcMask = func->getIRQ();
-        mask = OSBitOrAtomic64(mask, &funcMask);
-        
-        func = NULL;
+        mask |= funcMask;
+//        mask = OSBitOrAtomic64(mask, &funcMask);
     }
+    
+    OSSafeReleaseNULL(iter);
     
     return mask;
 }
@@ -412,24 +411,27 @@ static unsigned long rmi_driver_get_mask(RMIBus *rmiBus)
 static int rmi_driver_set_irq_bits(RMIBus *rmi_dev)
 {
     int error = 0;
-    unsigned long mask = rmi_driver_get_mask(rmi_dev);
-    struct rmi_driver_data *data = rmi_dev->data;
+    unsigned long mask = getMask(rmi_dev);
+    rmi_driver_data *data = rmi_dev->data;
     
     IOLockLock(data->irq_mutex);
-    *data->new_irq_mask = OSBitOrAtomic64(*data->current_irq_mask, &mask);
+//    *data->new_irq_mask = OSBitOrAtomic64(mask, data->current_irq_mask);
+//    *data->new_irq_mask = mask | *data->current_irq_mask;
+    mask |= *data->current_irq_mask;
     
     error = rmi_dev->blockWrite(data->f01_container->fd.control_base_addr + 1,
-                                reinterpret_cast<u8*>(data->new_irq_mask), data->num_of_irq_regs);
+                                (u8*)&mask /*reinterpret_cast<u8*>(data->new_irq_mask)*/, data->num_of_irq_regs);
     if (error < 0) {
         IOLogError("%s: Failed to change enabled intterupts!", __func__);
         goto error_unlock;
     }
     
+//    *data->current_irq_mask = *data->new_irq_mask;
+//    bitmap_copy(data->current_irq_mask, data->new_irq_mask,
+//                data->num_of_irq_regs);
     
-    bitmap_copy(data->current_irq_mask, data->new_irq_mask,
-                data->num_of_irq_regs);
-    
-    *data->fn_irq_bits = OSBitOrAtomic64(*data->fn_irq_bits, &mask);
+    *data->fn_irq_bits = mask | *data->fn_irq_bits;
+//    *data->fn_irq_bits = OSBitOrAtomic64(mask, data->fn_irq_bits);
     
 error_unlock:
     IOLockUnlock(data->irq_mutex);

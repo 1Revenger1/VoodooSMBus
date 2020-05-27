@@ -18,31 +18,27 @@ bool F11::init(OSDictionary *dictionary)
     if (!super::init(dictionary))
         return false;
     
-    data = reinterpret_cast<f11_data*>(IOMalloc(sizeof(f11_data)));
-    memset(data, 0, sizeof(f11_data));
-    if (!data)
-        return false;
-    
-    data->dev_controls_mutex = IOLockAlloc();
-    return data->dev_controls_mutex;
+    dev_controls_mutex = IOLockAlloc();
+    return dev_controls_mutex;
 }
 
-F11 * F11::probe(IOService *provider, SInt32 *score)
+bool F11::attach(IOService *provider)
 {
-    
     int error;
     
     rmiBus = OSDynamicCast(RMIBus, provider);
     if (!rmiBus) {
         IOLogError("F11: Provider is not RMIBus\n");
-        return NULL;
+        return false;
     }
     
     error = rmi_f11_initialize();
     if (error)
-        return NULL;
+        return false;
     
-    return this;
+    super::attach(provider);
+    
+    return true;
 }
 
 bool F11::start(IOService *provider)
@@ -52,22 +48,66 @@ bool F11::start(IOService *provider)
     
     int rc;
     
-    rc = f11_write_control_regs(&data->sens_query,
-                                &data->dev_controls, fn_descriptor->query_base_addr);
+    rc = f11_write_control_regs(&sens_query,
+                                &dev_controls, fn_descriptor->query_base_addr);
     
     if (rc < 0)
         return !rc;
     
+    if (!publishMultitouchInterface())
+        return false;
+    
+    registerService();
     return true;
+}
+
+void F11::stop(IOService *provider)
+{
+    unpublishMultitouchInterface();
+    OSSafeReleaseNULL(mt_interface);
+    super::stop(provider);
 }
 
 void F11::free()
 {
     clearDesc();
-    IOLockFree(data->dev_controls_mutex);
-    IOFree(data->sensor.data_pkt, sizeof(data->sensor.pkt_size));
-    IOFree(data, sizeof(f11_data));
+    IOLockFree(dev_controls_mutex);
+//    IOFree(sensor.data_pkt, sizeof(sensor.pkt_size));
     super::free();
+}
+
+bool F11::publishMultitouchInterface() {
+    mt_interface = OSTypeAlloc(VoodooI2CMultitouchInterface);
+    if (!mt_interface) {
+        IOLogError("No memory to allocate VoodooI2CMultitouchInterface instance\n");
+        goto multitouch_exit;
+    }
+    if (!mt_interface->init(NULL)) {
+        IOLogError("Failed to init multitouch interface\n");
+        goto multitouch_exit;
+    }
+    if (!mt_interface->attach(this)) {
+        IOLogError("Failed to attach multitouch interface\n");
+        goto multitouch_exit;
+    }
+    if (!mt_interface->start(this)) {
+        IOLogError("Failed to start multitouch interface\n");
+        goto multitouch_exit;
+    }
+    // TODO: setup trackpad
+    // Assume we are a touchpad
+    mt_interface->setProperty(kIOHIDDisplayIntegratedKey, false);
+    mt_interface->registerService();
+    return true;
+multitouch_exit:
+    unpublishMultitouchInterface();
+    return false;
+}
+
+void F11::unpublishMultitouchInterface() {
+    if (mt_interface) {
+        mt_interface->stop(this);
+    }
 }
 
 int F11::f11_read_control_regs(f11_2d_ctrl *ctrl, u16 ctrl_base_addr)
@@ -101,74 +141,73 @@ int F11::f11_write_control_regs(f11_2d_sensor_queries *query,
 
 int F11::f11_2d_construct_data()
 {
-    rmi_2d_sensor *sensor = &data->sensor;
-    f11_2d_sensor_queries *query = &data->sens_query;
-    f11_2d_data *data = &this->data->data_2d;
+    f11_2d_sensor_queries *query = &sens_query;
+    f11_2d_data *data = &data_2d;
     int i;
     
-    sensor->nbr_fingers = (query->nr_fingers == 5 ? 10 :
+    sensor.nbr_fingers = (query->nr_fingers == 5 ? 10 :
                            query->nr_fingers + 1);
     
-    sensor->pkt_size = DIV_ROUND_UP(sensor->nbr_fingers, 4);
+    sensor.pkt_size = DIV_ROUND_UP(sensor.nbr_fingers, 4);
     
     if (query->has_abs) {
-        sensor->pkt_size += (sensor->nbr_fingers * 5);
-        sensor->attn_size = sensor->pkt_size;
+        sensor.pkt_size += (sensor.nbr_fingers * 5);
+        sensor.attn_size = sensor.pkt_size;
     }
     
     if (query->has_rel)
-        sensor->pkt_size +=  (sensor->nbr_fingers * 2);
+        sensor.pkt_size +=  (sensor.nbr_fingers * 2);
     
     /* Check if F11_2D_Query7 is non-zero */
     if (query->query7_nonzero)
-        sensor->pkt_size += sizeof(u8);
+        sensor.pkt_size += sizeof(u8);
     
     /* Check if F11_2D_Query7 or F11_2D_Query8 is non-zero */
     if (query->query7_nonzero || query->query8_nonzero)
-        sensor->pkt_size += sizeof(u8);
+        sensor.pkt_size += sizeof(u8);
     
     if (query->has_pinch || query->has_flick || query->has_rotate) {
-        sensor->pkt_size += 3;
+        sensor.pkt_size += 3;
         if (!query->has_flick)
-            sensor->pkt_size--;
+            sensor.pkt_size--;
         if (!query->has_rotate)
-            sensor->pkt_size--;
+            sensor.pkt_size--;
     }
     
     if (query->has_touch_shapes)
-        sensor->pkt_size +=
+        sensor.pkt_size +=
         DIV_ROUND_UP(query->nr_touch_shapes + 1, 8);
     
-    sensor->data_pkt = reinterpret_cast<u8*>(IOMalloc(sensor->pkt_size));
+    sensor.data_pkt = reinterpret_cast<u8*>(IOMalloc(sensor.pkt_size));
     
-    if (!sensor->data_pkt)
+    if (!sensor.data_pkt)
         return -ENOMEM;
     
-    data->f_state = sensor->data_pkt;
-    i = DIV_ROUND_UP(sensor->nbr_fingers, 4);
+    data->f_state = sensor.data_pkt;
+    i = DIV_ROUND_UP(sensor.nbr_fingers, 4);
     
     if (query->has_abs) {
-        data->abs_pos = &sensor->data_pkt[i];
-        i += (sensor->nbr_fingers * RMI_F11_ABS_BYTES);
+        data->abs_pos = &sensor.data_pkt[i];
+        i += (sensor.nbr_fingers * RMI_F11_ABS_BYTES);
     }
     
     if (query->has_rel) {
-        data->rel_pos = reinterpret_cast<s8*>(&sensor->data_pkt[i]);
-        i += (sensor->nbr_fingers * RMI_F11_REL_BYTES);
+        data->rel_pos = reinterpret_cast<s8*>(&sensor.data_pkt[i]);
+        i += (sensor.nbr_fingers * RMI_F11_REL_BYTES);
     }
     
     if (query->query7_nonzero) {
-        data->gest_1 = &sensor->data_pkt[i];
+        data->gest_1 = &sensor.data_pkt[i];
         i++;
     }
     
     if (query->query7_nonzero || query->query8_nonzero) {
-        data->gest_2 = &sensor->data_pkt[i];
+        data->gest_2 = &sensor.data_pkt[i];
         i++;
     }
     
     if (query->has_pinch) {
-        data->pinch = reinterpret_cast<s8*>(&sensor->data_pkt[i]);
+        data->pinch = reinterpret_cast<s8*>(&sensor.data_pkt[i]);
         i++;
     }
     
@@ -177,7 +216,7 @@ int F11::f11_2d_construct_data()
             data->flick = reinterpret_cast<u8*>(data->pinch);
             i += 2;
         } else {
-            data->flick = &sensor->data_pkt[i];
+            data->flick = &sensor.data_pkt[i];
             i += 3;
         }
     }
@@ -186,13 +225,13 @@ int F11::f11_2d_construct_data()
         if (query->has_flick) {
             data->rotate = data->flick + 1;
         } else {
-            data->rotate = &sensor->data_pkt[i];
+            data->rotate = &sensor.data_pkt[i];
             i += 2;
         }
     }
     
     if (query->has_touch_shapes)
-        data->shapes = &sensor->data_pkt[i];
+        data->shapes = &sensor.data_pkt[i];
     
     return 0;
 }
@@ -350,7 +389,7 @@ int F11::rmi_f11_get_query_parameters(f11_2d_sensor_queries *sensor_query,
         query_size += 2;
     }
     
-    if (data->has_query9) {
+    if (has_query9) {
         rc = rmiBus->read(query_base_addr + query_size, query_buf);
         if (rc < 0)
             return rc;
@@ -400,7 +439,7 @@ int F11::rmi_f11_get_query_parameters(f11_2d_sensor_queries *sensor_query,
         query_size++;
     }
     
-    if (data->has_query11) {
+    if (has_query11) {
         rc = rmiBus->read(query_base_addr + query_size, query_buf);
         if (rc < 0)
             return rc;
@@ -437,7 +476,7 @@ int F11::rmi_f11_get_query_parameters(f11_2d_sensor_queries *sensor_query,
         query_size++;
     }
     
-    if (data->has_query12) {
+    if (has_query12) {
         rc = rmiBus->read(query_base_addr + query_size, query_buf);
         if (rc < 0)
             return rc;
@@ -544,7 +583,7 @@ int F11::rmi_f11_get_query_parameters(f11_2d_sensor_queries *sensor_query,
         query_size += 12;
     }
     
-    if (data->has_query27)
+    if (has_query27)
         ++query_size;
     
     /*
@@ -553,7 +592,7 @@ int F11::rmi_f11_get_query_parameters(f11_2d_sensor_queries *sensor_query,
      * they didn't just do +1 for each.
      * The check for has_query36 in here suggests not though
      */
-    if (data->has_query28) {
+    if (has_query28) {
         rc = rmiBus->read(query_base_addr + query_size,
                       query_buf);
         if (rc < 0)
@@ -570,7 +609,7 @@ int F11::rmi_f11_get_query_parameters(f11_2d_sensor_queries *sensor_query,
             return rc;
         
         if (!!(query_buf[0] & BIT(5)))
-            data->has_acm = true;
+            has_acm = true;
     }
     
     return query_size;
@@ -584,7 +623,7 @@ int F11::rmi_f11_initialize()
     u16 control_base_addr;
     u16 max_x_pos, max_y_pos;
     int rc;
-    struct rmi_2d_sensor *sensor;
+//    struct rmi_2d_sensor *sensor;
     u8 buf;
     int mask_size;
     
@@ -613,15 +652,15 @@ int F11::rmi_f11_initialize()
     
     // supposed to be default platform data - I can't find it though
     // Going to assume 100ms as in other places
-    data->rezero_wait_ms = REZERO_WAIT_MS;
+    rezero_wait_ms = REZERO_WAIT_MS;
     
-    data->abs_mask = (unsigned long *)((char *)data
-                                      + sizeof(struct f11_data));
-    data->rel_mask = (unsigned long *)((char *)data
-                                      + sizeof(struct f11_data) + mask_size);
-    
-    set_bit(getIRQPos(), data->abs_mask);
-    set_bit(getIRQPos() + 1, data->rel_mask);
+//    data->abs_mask = (unsigned long *)((char *)data
+//                                      + sizeof(struct f11_data));
+//    data->rel_mask = (unsigned long *)((char *)data
+//                                      + sizeof(struct f11_data) + mask_size);
+//    
+//    set_bit(getIRQPos(), data->abs_mask);
+//    set_bit(getIRQPos() + 1, data->rel_mask);
     
     query_base_addr = fn_descriptor->query_base_addr;
     control_base_addr = fn_descriptor->control_base_addr;
@@ -632,51 +671,49 @@ int F11::rmi_f11_initialize()
         return rc;
     }
     
-    data->has_query9 = !!(buf & RMI_F11_HAS_QUERY9);
-    data->has_query11 = !!(buf & RMI_F11_HAS_QUERY11);
-    data->has_query12 = !!(buf & RMI_F11_HAS_QUERY12);
-    data->has_query27 = !!(buf & RMI_F11_HAS_QUERY27);
-    data->has_query28 = !!(buf & RMI_F11_HAS_QUERY28);
+    has_query9 = !!(buf & RMI_F11_HAS_QUERY9);
+    has_query11 = !!(buf & RMI_F11_HAS_QUERY11);
+    has_query12 = !!(buf & RMI_F11_HAS_QUERY12);
+    has_query27 = !!(buf & RMI_F11_HAS_QUERY27);
+    has_query28 = !!(buf & RMI_F11_HAS_QUERY28);
     
     query_offset = (query_base_addr + 1);
-    sensor = &data->sensor;
-    sensor->fn = this;
     
-    rc = rmi_f11_get_query_parameters(&data->sens_query, query_offset);
+    rc = rmi_f11_get_query_parameters(&sens_query, query_offset);
     if (rc < 0) {
         IOLogError("F11: Could not read Sensor Query");
         return rc;
     }
     query_offset += rc;
     
-    rc = f11_read_control_regs(&data->dev_controls,
+    rc = f11_read_control_regs(&dev_controls,
                                control_base_addr);
     if (rc < 0) {
         IOLogError("Failed to read F11 control params.\n");
         return rc;
     }
     
-    if (data->sens_query.has_info2) {
-        if (data->sens_query.is_clear)
-            data->sensor.sensor_type = rmi_sensor_touchscreen;
+    if (sens_query.has_info2) {
+        if (sens_query.is_clear)
+            sensor.sensor_type = rmi_sensor_touchscreen;
         else
-            data->sensor.sensor_type = rmi_sensor_touchpad;
+            sensor.sensor_type = rmi_sensor_touchpad;
     }
     
-    sensor->report_abs = data->sens_query.has_abs;
+    sensor.report_abs = sens_query.has_abs;
     
-    sensor->axis_align =
-        data->sensor_pdata.axis_align;
+    sensor.axis_align =
+        sensor_pdata.axis_align;
     
-    sensor->topbuttonpad = data->sensor_pdata.topbuttonpad;
-    sensor->kernel_tracking = data->sensor_pdata.kernel_tracking;
-    sensor->dmax = data->sensor_pdata.dmax;
-    sensor->dribble = static_cast<rmi_reg_state>(data->sensor_pdata.dribble);
-    sensor->palm_detect = static_cast<rmi_reg_state>(data->sensor_pdata.palm_detect);
+    sensor.topbuttonpad = sensor_pdata.topbuttonpad;
+    sensor.kernel_tracking = sensor_pdata.kernel_tracking;
+    sensor.dmax = sensor_pdata.dmax;
+    sensor.dribble = static_cast<rmi_reg_state>(sensor_pdata.dribble);
+    sensor.palm_detect = static_cast<rmi_reg_state>(sensor_pdata.palm_detect);
     
-    if (data->sens_query.has_physical_props) {
-        sensor->x_mm = data->sens_query.x_sensor_size_mm;
-        sensor->y_mm = data->sens_query.y_sensor_size_mm;
+    if (sens_query.has_physical_props) {
+        sensor.x_mm = sens_query.x_sensor_size_mm;
+        sensor.y_mm = sens_query.y_sensor_size_mm;
     } else {
         IOLogError("No size data from Device.\n");
         return -ENODEV;
@@ -684,20 +721,20 @@ int F11::rmi_f11_initialize()
 //        sensor->y_mm = f11->sensor_pdata.y_mm;
     }
     
-    if (sensor->sensor_type == rmi_sensor_default)
-        sensor->sensor_type =
-            data->sensor_pdata.sensor_type;
+    if (sensor.sensor_type == rmi_sensor_default)
+        sensor.sensor_type =
+            sensor_pdata.sensor_type;
     
-    sensor->report_abs = sensor->report_abs
-        && !(data->sensor_pdata.disable_report_mask
+    sensor.report_abs = sensor.report_abs
+        && !(sensor_pdata.disable_report_mask
              & RMI_F11_DISABLE_ABS_REPORT);
     
-    if (!sensor->report_abs)
+    if (!sensor.report_abs)
         /*
          * If device doesn't have abs or if it has been disables
          * fallback to reporting rel data.
          */
-        sensor->report_rel = data->sens_query.has_rel;
+        sensor.report_rel = sens_query.has_rel;
     
     rc = rmiBus->readBlock(control_base_addr + F11_CTRL_SENSOR_MAX_X_POS_OFFSET,
                            (u8 *)&max_x_pos, sizeof(max_x_pos));
@@ -713,8 +750,8 @@ int F11::rmi_f11_initialize()
         return rc;
     }
         
-    sensor->max_x = max_x_pos;
-    sensor->max_y = max_y_pos;
+    sensor.max_x = max_x_pos;
+    sensor.max_y = max_y_pos;
     
     rc = f11_2d_construct_data();
     if (rc < 0) {
@@ -722,8 +759,8 @@ int F11::rmi_f11_initialize()
         return rc;
     }
     
-    if (data->has_acm)
-        data->sensor.attn_size += data->sensor.nbr_fingers * 2;
+    if (has_acm)
+        sensor.attn_size += sensor.nbr_fingers * 2;
     
     /* allocate the in-kernel tracking buffers */
     // TODO: Trackpad Sim allocate
@@ -739,27 +776,27 @@ int F11::rmi_f11_initialize()
 //    if (!sensor->tracking_pos || !sensor->tracking_slots || !sensor->objs)
 //        return -ENOMEM;
     
-    ctrl = &data->dev_controls;
-    if (sensor->axis_align.delta_x_threshold)
+    ctrl = &dev_controls;
+    if (sensor.axis_align.delta_x_threshold)
         ctrl->ctrl0_11[RMI_F11_DELTA_X_THRESHOLD] =
-        sensor->axis_align.delta_x_threshold;
+        sensor.axis_align.delta_x_threshold;
     
-    if (sensor->axis_align.delta_y_threshold)
+    if (sensor.axis_align.delta_y_threshold)
         ctrl->ctrl0_11[RMI_F11_DELTA_Y_THRESHOLD] =
-        sensor->axis_align.delta_y_threshold;
+        sensor.axis_align.delta_y_threshold;
     
     /*
      * If distance threshold values are set, switch to reduced reporting
      * mode so they actually get used by the controller.
      */
-    if (sensor->axis_align.delta_x_threshold ||
-        sensor->axis_align.delta_y_threshold) {
+    if (sensor.axis_align.delta_x_threshold ||
+        sensor.axis_align.delta_y_threshold) {
         ctrl->ctrl0_11[0] &= ~RMI_F11_REPORT_MODE_MASK;
         ctrl->ctrl0_11[0] |= RMI_F11_REPORT_MODE_REDUCED;
     }
     
-    if (data->sens_query.has_dribble) {
-        switch (sensor->dribble) {
+    if (sens_query.has_dribble) {
+        switch (sensor.dribble) {
             case RMI_REG_STATE_OFF:
                 ctrl->ctrl0_11[0] &= ~BIT(6);
                 break;
@@ -772,8 +809,8 @@ int F11::rmi_f11_initialize()
         }
     }
     
-    if (data->sens_query.has_palm_det) {
-        switch (sensor->palm_detect) {
+    if (sens_query.has_palm_det) {
+        switch (sensor.palm_detect) {
             case RMI_REG_STATE_OFF:
                 ctrl->ctrl0_11[11] &= ~BIT(0);
                 break;
@@ -786,8 +823,8 @@ int F11::rmi_f11_initialize()
         }
     }
     
-    rc = f11_write_control_regs(&data->sens_query,
-                                &data->dev_controls, fn_descriptor->control_base_addr);
+    rc = f11_write_control_regs(&sens_query,
+                                &dev_controls, fn_descriptor->control_base_addr);
     if (rc)
         IOLogError("F11: Failed to write control registers\n");
     

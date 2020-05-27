@@ -172,8 +172,8 @@
 				A48372D52463444200E87AD4 /* rmi_driver.cpp */,
 				A48372DD24634EB600E87AD4 /* rmi.h */,
 				A48C6329246D0BD00002DFBD /* types.h */,
-				A4B53C9324764ED900E1DB0F /* RMI_2D_Sensor.cpp */,
 				A4B53C9424764ED900E1DB0F /* RMI_2D_Sensor.hpp */,
+				A4B53C9324764ED900E1DB0F /* RMI_2D_Sensor.cpp */,
 			);
 			path = RMIBus;
 			sourceTree = "<group>";
