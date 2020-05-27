@@ -76,6 +76,15 @@ err:
 void RMIBus::handleHostNotifyThreaded()
 {
     unsigned long mask, irqStatus, movingMask = 1;
+    if (!data) {
+        IOLogError("NO DATA\n");
+        return;
+    }
+    if (!data->f01_container) {
+        IOLogError("NO F01 CONTAINER\n");
+        return;
+    }
+    
     int error = readBlock(data->f01_container->fd.data_base_addr + 1,
                           reinterpret_cast<u8*>(&irqStatus), data->num_of_irq_regs);
     

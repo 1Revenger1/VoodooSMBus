@@ -54,8 +54,8 @@ bool F11::start(IOService *provider)
     if (rc < 0)
         return !rc;
     
-//    if (!publishMultitouchInterface())
-//        return false;
+    if (!publishMultitouchInterface())
+        return false;
     
     registerService();
     return true;
