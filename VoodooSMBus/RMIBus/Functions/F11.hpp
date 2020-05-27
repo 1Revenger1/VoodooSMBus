@@ -518,7 +518,9 @@ private:
     OSDictionary *jitterProps;
     OSDictionary *miscProps;
     OSDictionary *sizeProps;
+    int lastFingers;
     VoodooI2CMultitouchInterface *mt_interface;
+    OSArray *transducers;
     
     /** Data pertaining to F11 in general.  For per-sensor data, see struct
     * f11_2d_sensor.
@@ -547,7 +549,8 @@ private:
     struct rmi_2d_sensor_platform_data sensor_pdata;
     unsigned long *abs_mask;
     unsigned long *rel_mask;
-       
+    
+    bool getReport();
     bool publishMultitouchInterface();
     void unpublishMultitouchInterface();
     int rmi_f11_initialize();
@@ -558,6 +561,13 @@ private:
                                f11_2d_ctrl *ctrl,
                                u16 ctrl_base_addr);
     int f11_2d_construct_data();
+    
+    
+    inline u8 rmi_f11_parse_finger_state(u8 n_finger)
+    {
+        return (data_2d.f_state[n_finger / 4] >> (2 * (n_finger % 4)))
+                & FINGER_STATE_MASK;
+    }
 };
 
 

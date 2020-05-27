@@ -57,6 +57,11 @@ bool F11::start(IOService *provider)
     if (!publishMultitouchInterface())
         return false;
     
+    mt_interface->physical_max_x =  sens_query.x_sensor_size_mm * 10;
+    mt_interface->physical_max_y = sens_query.y_sensor_size_mm * 10;
+    mt_interface->logical_max_x = sensor.max_x;
+    mt_interface->logical_max_y = sensor.max_y;
+    
     registerService();
     return true;
 }
@@ -72,20 +77,114 @@ void F11::free()
 {
     clearDesc();
     IOLockFree(dev_controls_mutex);
-//    IOFree(sensor.data_pkt, sizeof(sensor.pkt_size));
+//    if (sensor.data_pkt)
+//        IOFree(sensor.data_pkt, sizeof(sensor.pkt_size));
+    
+    if (transducers) {
+        for (int i = 0; i < transducers->getCount(); i++) {
+            OSObject* object = transducers->getObject(i);
+            OSSafeReleaseNULL(object);
+        }
+    }
+    
+    OSSafeReleaseNULL(transducers);
+    
+    
     super::free();
 }
 
 IOReturn F11::message(UInt32 type, IOService *provider, void *argument)
 {
+    bool result;
+    
     switch (type)
     {
         case kHandleRMIInterrupt:
             IOLog("F11 interrupt");
+            result = getReport();
             break;
+        default:
+            result = true;
     }
     
     return kIOReturnSuccess;
+}
+
+bool F11::getReport()
+{
+    int error, fingers, abs_size;
+    u8 finger_state;
+    
+    error = rmiBus->readBlock(fn_descriptor->data_base_addr,
+                              sensor.data_pkt, sensor.pkt_size);
+    
+    if (error < 0)
+    {
+        IOLogError("Could not read F11 attention data: %02X", error);
+        return false;
+    }
+    
+    abs_size = sensor.nbr_fingers & RMI_F11_ABS_BYTES;
+    if (abs_size > sensor.pkt_size)
+        fingers = sensor.pkt_size / RMI_F11_ABS_BYTES;
+    else fingers = sensor.nbr_fingers;
+    
+    VoodooI2CMultitouchEvent event;
+    event.contact_count = 0;
+    event.transducers = transducers;
+    
+    AbsoluteTime timestamp;
+    clock_get_uptime(&timestamp);
+    
+    if (lastFingers != fingers) {
+        lastFingers = fingers;
+        return true;
+    } else lastFingers = fingers;
+    
+    
+    for (int i = 0; i < fingers; i++) {
+        finger_state = rmi_f11_parse_finger_state(i);
+        if (finger_state == F11_RESERVED) {
+            IOLogError("Invalid finger state[%d]: 0x%02x", i,
+                       finger_state);
+            continue;
+        }
+        
+        VoodooI2CDigitiserTransducer* transducer = OSDynamicCast(VoodooI2CDigitiserTransducer,
+                                                                 transducers->getObject(i));
+        transducer->id = i;
+        transducer->secondary_id = i;
+        transducer->logical_max_x = mt_interface->logical_max_x;
+        transducer->logical_max_y = mt_interface->logical_max_y;
+        transducer->physical_button.update(0, timestamp);
+        transducer->type = kDigitiserTransducerFinger;
+        transducer->is_valid = finger_state == F11_PRESENT;
+        
+        if (finger_state == F11_PRESENT) {
+            u8 *pos_data = &data_2d.abs_pos[i * RMI_F11_ABS_BYTES];
+            event.contact_count++;
+            u16 pos_x, pos_y;
+            
+            pos_x = (pos_data[0] << 4) | (pos_data[2] & 0x0F);
+            pos_y = (pos_data[1] << 4) | (pos_data[2] >> 4);
+            
+            IOLog("Finger %d : [%d, %d]", i, pos_x, pos_y);
+            
+            transducer->coordinates.x.update(pos_x, timestamp);
+            transducer->coordinates.y.update(sensor.max_y - pos_y, timestamp);
+            transducer->tip_switch.update(1, timestamp);
+        } else {
+           transducer->coordinates.x.update(transducer->coordinates.x.last.value, timestamp);
+           transducer->coordinates.y.update(transducer->coordinates.y.last.value, timestamp);
+           transducer->tip_switch.update(0, timestamp);
+       }
+    }
+    
+    IOLog("Event: Finger Count %d", event.contact_count);
+    // send the event into the multitouch interface
+    mt_interface->handleInterruptReport(event, timestamp);
+    
+    return true;
 }
 
 bool F11::publishMultitouchInterface() {
@@ -775,19 +874,13 @@ int F11::rmi_f11_initialize()
     if (has_acm)
         sensor.attn_size += sensor.nbr_fingers * 2;
     
-    /* allocate the in-kernel tracking buffers */
-    // TODO: Trackpad Sim allocate
-//    sensor->tracking_pos = devm_kcalloc(&fn->dev,
-//                                        sensor->nbr_fingers, sizeof(struct input_mt_pos),
-//                                        GFP_KERNEL);
-//    sensor->tracking_slots = devm_kcalloc(&fn->dev,
-//                                          sensor->nbr_fingers, sizeof(int), GFP_KERNEL);
-//    sensor->objs = devm_kcalloc(&fn->dev,
-//                                sensor->nbr_fingers,
-//                                sizeof(struct rmi_2d_sensor_abs_object),
-//                                GFP_KERNEL);
-//    if (!sensor->tracking_pos || !sensor->tracking_slots || !sensor->objs)
-//        return -ENOMEM;
+    transducers = OSArray::withCapacity(sensor.nbr_fingers);
+
+    DigitiserTransducerType type = kDigitiserTransducerFinger;
+    for (int i = 0; i < sensor.nbr_fingers; i++) {
+        VoodooI2CDigitiserTransducer* transducer = VoodooI2CDigitiserTransducer::transducer(type, NULL);
+        transducers->setObject(transducer);
+    }
     
     ctrl = &dev_controls;
     if (sensor.axis_align.delta_x_threshold)
