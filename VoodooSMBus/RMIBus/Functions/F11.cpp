@@ -100,7 +100,6 @@ IOReturn F11::message(UInt32 type, IOService *provider, void *argument)
     switch (type)
     {
         case kHandleRMIInterrupt:
-            IOLog("F11 interrupt");
             result = getReport();
             break;
         default:
@@ -168,8 +167,6 @@ bool F11::getReport()
             pos_x = (pos_data[0] << 4) | (pos_data[2] & 0x0F);
             pos_y = (pos_data[1] << 4) | (pos_data[2] >> 4);
             
-            IOLog("Finger %d : [%d, %d]", i, pos_x, pos_y);
-            
             transducer->coordinates.x.update(pos_x, timestamp);
             transducer->coordinates.y.update(sensor.max_y - pos_y, timestamp);
             transducer->tip_switch.update(1, timestamp);
@@ -180,7 +177,6 @@ bool F11::getReport()
        }
     }
     
-    IOLog("Event: Finger Count %d", event.contact_count);
     // send the event into the multitouch interface
     mt_interface->handleInterruptReport(event, timestamp);
     
