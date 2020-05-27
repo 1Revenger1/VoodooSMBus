@@ -11,6 +11,7 @@
 
 #include "../RMI_2D_Sensor.hpp"
 #include <RMIBus.hpp>
+#include <IOKit/IOMessage.h>
 #include "../../../Dependencies/VoodooI2C/Multitouch Support/VoodooI2CMultitouchInterface.hpp"
 
 /*
@@ -504,6 +505,7 @@ public:
     bool attach(IOService *provider) override;
     bool start(IOService *provider) override;
     void stop(IOService *provider) override;
+    IOReturn message(UInt32 type, IOService *provider, void *argument = 0) override;
     void free() override;
     
 private:

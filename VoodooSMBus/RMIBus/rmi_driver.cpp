@@ -289,21 +289,10 @@ int rmi_probe_interrupts(rmi_driver_data *data)
     data->num_of_irq_regs = (data->irq_count + 7) / 8;
     IOLogDebug("IRQ Count: %d\n", data->irq_count);
     
-    size = BITS_TO_LONGS(data->irq_count) * sizeof(unsigned long);
-    
-    data->irq_memory = reinterpret_cast<unsigned long *>(IOMalloc(size * 4));
-    memset(data->irq_memory, 0, size * 4);
-    if (!data->irq_memory) {
-        IOLogError("Failed to allocate memory for irq masks.\n");
-        return -ENOMEM;
-    }
-    
-    data->irq_memory_size = size * 4;
-    
-    data->irq_status        = data->irq_memory + size * 0;
-    data->fn_irq_bits       = data->irq_memory + size * 1;
-    data->current_irq_mask  = data->irq_memory + size * 2;
-    data->new_irq_mask      = data->irq_memory + size * 3;
+    data->irq_status        = 0;
+    data->fn_irq_bits       = 0;
+    data->current_irq_mask  = 0;
+    data->new_irq_mask      = 0;
     
     return retval;
 }
@@ -399,8 +388,8 @@ static unsigned long getMask(RMIBus *rmiBus)
     OSIterator* iter = rmiBus->getClientIterator();
     while ((func = OSDynamicCast(RMIFunction, iter->getNextObject()))) {
         unsigned long funcMask = func->getIRQ();
+        IOLog("Added mask: %lu\n", funcMask);
         mask |= funcMask;
-//        mask = OSBitOrAtomic64(mask, &funcMask);
     }
     
     OSSafeReleaseNULL(iter);
@@ -415,9 +404,7 @@ static int rmi_driver_set_irq_bits(RMIBus *rmi_dev)
     rmi_driver_data *data = rmi_dev->data;
     
     IOLockLock(data->irq_mutex);
-//    *data->new_irq_mask = OSBitOrAtomic64(mask, data->current_irq_mask);
-//    *data->new_irq_mask = mask | *data->current_irq_mask;
-    mask |= *data->current_irq_mask;
+    data->new_irq_mask = mask | data->current_irq_mask;
     
     error = rmi_dev->blockWrite(data->f01_container->fd.control_base_addr + 1,
                                 (u8*)&mask /*reinterpret_cast<u8*>(data->new_irq_mask)*/, data->num_of_irq_regs);
@@ -426,12 +413,8 @@ static int rmi_driver_set_irq_bits(RMIBus *rmi_dev)
         goto error_unlock;
     }
     
-//    *data->current_irq_mask = *data->new_irq_mask;
-//    bitmap_copy(data->current_irq_mask, data->new_irq_mask,
-//                data->num_of_irq_regs);
-    
-    *data->fn_irq_bits = mask | *data->fn_irq_bits;
-//    *data->fn_irq_bits = OSBitOrAtomic64(mask, data->fn_irq_bits);
+    data->current_irq_mask = data->new_irq_mask;
+    data->fn_irq_bits = mask | data->fn_irq_bits;
     
 error_unlock:
     IOLockUnlock(data->irq_mutex);
@@ -468,8 +451,6 @@ int rmi_init_functions(rmi_driver_data *data)
         return retval;
     }
     
-    return 0;
-    
     if (!data->f01_container) {
         IOLogError("Missing F01 container!\n");
         return -EINVAL;
@@ -477,7 +458,7 @@ int rmi_init_functions(rmi_driver_data *data)
     
     retval = rmi_dev->readBlock(
                             data->f01_container->fd.control_base_addr + 1,
-                            reinterpret_cast<u8 *>(data->current_irq_mask), data->num_of_irq_regs);
+                            reinterpret_cast<u8 *>(&data->current_irq_mask), data->num_of_irq_regs);
     
     if (retval < 0) {
         IOLogError("%s: Failed to read current IRQ mask.\n", __func__);
@@ -492,13 +473,6 @@ void rmi_free_function_list(RMIBus *rmi_dev)
     struct rmi_driver_data *data = rmi_dev->data;
     
     IOLogDebug("Freeing function list\n");
-    
-//    IOFree(data->irq_memory, sizeof(data->irq_memory_size));
-    data->irq_memory = NULL;
-    data->irq_status = NULL;
-    data->fn_irq_bits = NULL;
-    data->current_irq_mask = NULL;
-    data->new_irq_mask = NULL;
     
     data->f01_container = NULL;
     data->f34_container = NULL;

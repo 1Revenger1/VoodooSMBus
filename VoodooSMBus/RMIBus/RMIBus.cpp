@@ -42,7 +42,6 @@ RMIBus * RMIBus::probe(IOService *provider, SInt32 *score) {
     
     device_nub->setSlaveDeviceFlags(I2C_CLIENT_HOST_NOTIFY);
 
-    
     if (rmi_driver_probe(this)) {
         IOLog("Could not probe");
         return NULL;
@@ -76,34 +75,57 @@ err:
 
 void RMIBus::handleHostNotifyThreaded()
 {
-    OSIterator* iter = getClientIterator();
-    OSObject* obj = NULL;
-    RMIFunction* func;
+    unsigned long mask, irqStatus, movingMask = 1;
+    int error = readBlock(data->f01_container->fd.data_base_addr + 1,
+                          reinterpret_cast<u8*>(&irqStatus), data->num_of_irq_regs);
     
-    unsigned long curIRQ = 0;
+    data->irq_status = irqStatus;
     
-    while((func = OSDynamicCast(RMIFunction, iter->getNextObject())))
-    {
-//        if (func->getIRQ() & curIRQ)
-//            func->handleInterrupt();
-        
-        func = NULL;
+    if (error < 0){
+        IOLogError("Unable to read IRQ\n");
+        return;
     }
-    iter->reset();
+    
+    IOLockLock(data->irq_mutex);
+    mask = data->irq_status & data->fn_irq_bits;
+    IOLockUnlock(data->irq_mutex);
+    
+    IOLog("Interrupt Threaded: %lX\n", mask);
+    
+    OSIterator* iter = OSCollectionIterator::withCollection(functions);
+    
+    while (mask) {
+        if (!(mask & movingMask)) {
+            mask &= ~movingMask;
+            movingMask <<=1;
+            continue;
+        }
+        
+        while(RMIFunction *func = OSDynamicCast(RMIFunction, iter->getNextObject())) {
+            if (func->getIRQ() & movingMask) {
+                messageClient(kHandleRMIInterrupt, func);
+                
+                mask &= ~movingMask;
+                break;
+            }
+        }
+        
+        mask &= ~movingMask;
+        iter->reset();
+        movingMask <<= 1;
+    }
     
     OSSafeReleaseNULL(iter);
-    
-    IOLogError("Unknown command");
 }
 
 void RMIBus::handleHostNotify() {
-    IOLog("Notification recieved");
-    
+//    IOLog("Notification recieved");
+    handleHostNotifyThreaded();
 //    thread_t new_thread;
 //    kern_return_t ret = kernel_thread_start(
 //            OSMemberFunctionCast(thread_continue_t, this, &RMIBus::handleHostNotifyThreaded),
 //            this, &new_thread);
-//    
+//
 //    if (ret != KERN_SUCCESS) {
 //        IOLogDebug(" Thread error while attemping to handle host notify in device nub.\n");
 //    } else {

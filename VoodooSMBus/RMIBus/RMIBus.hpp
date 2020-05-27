@@ -12,8 +12,9 @@
 class RMIBus;
 class RMIFunction;
 
-#include <IOKit/IOService.h>
 #include <IOKit/IOLib.h>
+#include <IOKit/IOMessage.h>
+#include <IOKit/acpi/IOACPIPlatformDevice.h>
 #include "VoodooSMBusSlaveDeviceDriver.hpp"
 #include "VoodooSMBusDeviceNub.hpp"
 #include "rmi.h"
@@ -42,6 +43,9 @@ struct mapping_table_entry {
     type *__mptr = (type *)(ptr);           \
     ((type *)(__mptr - offsetof(type, member))); })
 
+enum {
+    kHandleRMIInterrupt = iokit_vendor_specific_msg(1100)
+};
 
 class RMIBus : public VoodooSMBusSlaveDeviceDriver {
     OSDeclareDefaultStructors(RMIBus);

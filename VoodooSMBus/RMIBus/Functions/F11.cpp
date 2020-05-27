@@ -54,8 +54,8 @@ bool F11::start(IOService *provider)
     if (rc < 0)
         return !rc;
     
-    if (!publishMultitouchInterface())
-        return false;
+//    if (!publishMultitouchInterface())
+//        return false;
     
     registerService();
     return true;
@@ -74,6 +74,18 @@ void F11::free()
     IOLockFree(dev_controls_mutex);
 //    IOFree(sensor.data_pkt, sizeof(sensor.pkt_size));
     super::free();
+}
+
+IOReturn F11::message(UInt32 type, IOService *provider, void *argument)
+{
+    switch (type)
+    {
+        case kHandleRMIInterrupt:
+            IOLog("F11 interrupt");
+            break;
+    }
+    
+    return kIOReturnSuccess;
 }
 
 bool F11::publishMultitouchInterface() {
@@ -106,6 +118,7 @@ multitouch_exit:
 
 void F11::unpublishMultitouchInterface() {
     if (mt_interface) {
+        mt_interface->detach(this);
         mt_interface->stop(this);
     }
 }

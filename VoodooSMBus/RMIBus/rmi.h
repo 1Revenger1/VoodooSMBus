@@ -229,12 +229,10 @@ struct rmi_driver_data {
     
     int num_of_irq_regs;
     int irq_count;
-    unsigned long *irq_memory;
-    unsigned long irq_memory_size;
-    unsigned long *irq_status;
-    unsigned long *fn_irq_bits;
-    unsigned long *current_irq_mask;
-    unsigned long *new_irq_mask;
+    unsigned long irq_status;
+    unsigned long fn_irq_bits;
+    unsigned long current_irq_mask;
+    unsigned long new_irq_mask;
     IOLock *irq_mutex;
     
     struct irq_domain *irqdomain;
