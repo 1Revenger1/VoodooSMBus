@@ -76,7 +76,7 @@ bool VoodooSMBusDeviceNub::start(IOService* provider) {
     return true;
 }
 
-void VoodooSMBusDeviceNub::stop(IOService* provider) {
+void VoodooSMBusDeviceNub::free() {
     if (interruptSource) {
         workloop->removeEventSource(interruptSource);
         interruptSource->release();
@@ -84,7 +84,6 @@ void VoodooSMBusDeviceNub::stop(IOService* provider) {
     }
     
     OSSafeReleaseNULL(workloop);
-    super::stop(provider);
 }
 
 void VoodooSMBusDeviceNub::setSlaveDeviceFlags(unsigned short flags) {
