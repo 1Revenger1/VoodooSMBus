@@ -230,10 +230,7 @@ IOReturn VoodooSMBusControllerDriver::publishNub(UInt8 address) {
         goto exit;
     }
     
-    if (!device_nub->start(this)) {
-        IOLogError("%s::%s Could not start nub", getName(), adapter->name);
-        goto exit;
-    }
+    device_nub->registerService();
     
     char key[5];
     addrToDictKey(address, key);

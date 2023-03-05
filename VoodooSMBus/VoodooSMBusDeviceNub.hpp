@@ -26,8 +26,6 @@ class EXPORT VoodooSMBusDeviceNub : public IOService {
 public:
     bool init() override;
     bool attach(IOService* provider, UInt8 address);
-    bool start(IOService* provider) override;
-    void stop(IOService* provider) override;
     void free(void) override;
 
     void handleHostNotify();
@@ -41,10 +39,11 @@ public:
     IOReturn wakeupController();
     
 private:
+    IOInterruptEventSource *interruptSource;
+    IOWorkLoop *workloop;
     VoodooSMBusControllerDriver* controller;
-    void releaseResources();
-    VoodooSMBusSlaveDevice* slave_device;
-    void handleHostNotifyThreaded();
+    VoodooSMBusSlaveDevice slave_device;
+    void handleHostNotifyGated(OSObject* owner, IOInterruptEventSource* src, int intCount);
 };
 
 #endif /* VoodooSMBusDeviceNub_hpp */
