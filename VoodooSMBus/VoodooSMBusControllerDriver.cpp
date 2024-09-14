@@ -149,10 +149,7 @@ IOReturn VoodooSMBusControllerDriver::setPowerState(unsigned long whichState, IO
         return kIOPMAckImplied;
     
     if (whichState == kIOPMPowerOff) {
-<<<<<<< HEAD
         disableHostNotify();
-=======
->>>>>>> 5ec87c0 (Remove comments)
         pci_device->ioWrite8(SMBHSTCFG, adapter->original_hstcfg);
         awake = false;
     } else {
