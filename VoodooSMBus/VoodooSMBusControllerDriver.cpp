@@ -18,9 +18,12 @@ OSDefineMetaClassAndStructors(VoodooSMBusControllerDriver, IOService)
 #define super IOService
 #define MILLI_TO_NANO 1000000
 
+static const OSSymbol *gSMBusCompanionSymbol = nullptr;
+
 bool VoodooSMBusControllerDriver::init(OSDictionary *dict) {
     bool result = super::init(dict);
     
+    gSMBusCompanionSymbol = OSSymbol::withCString("VoodooSMBusCompanionDevice");
     adapter = reinterpret_cast<i801_adapter*>(IOMalloc(sizeof(i801_adapter)));
     awake = true;
     
@@ -89,7 +92,6 @@ bool VoodooSMBusControllerDriver::start(IOService *provider) {
     
     provider->registerInterrupt(0, nullptr, handleInterrupt, this);
     provider->enableInterrupt(0);
-    interruptEnabled = true;
     
     command_gate = IOCommandGate::commandGate(this);
     if (!command_gate || (work_loop->addEventSource(command_gate) != kIOReturnSuccess)) {
@@ -107,8 +109,6 @@ bool VoodooSMBusControllerDriver::start(IOService *provider) {
     deviceList = createEmptyList();
     publishMultipleNubs();
     enableHostNotify();
-
-    setProperty(kControlNotifications, kOSBooleanTrue);
     
     registerService();
 
@@ -120,8 +120,7 @@ exit:
 }
 
 void VoodooSMBusControllerDriver::releaseResources() {
-    disableHostNotify();
-    pci_device->ioWrite8(SMBHSTCFG, adapter->original_hstcfg);
+    deleteTree(deviceList);
     
     if (command_gate) {
         work_loop->removeEventSource(command_gate);
@@ -136,9 +135,9 @@ void VoodooSMBusControllerDriver::releaseResources() {
 
 
 void VoodooSMBusControllerDriver::stop(IOService *provider) {
-    interruptEnabled = false;
+    disableHostNotify();
+    pci_device->ioWrite8(SMBHSTCFG, adapter->original_hstcfg);
     provider->unregisterInterrupt(0);
-    deleteTree(deviceList);
     releaseResources();
     PMstop();
     super::stop(provider);
@@ -181,8 +180,7 @@ IOReturn VoodooSMBusControllerDriver::publishMultipleNubs() {
     while (OSNumber *addr = OSDynamicCast(OSNumber, iter->getNextObject()))
     {
         uint8_t addrPrim = addr->unsigned8BitValue();
-        bool sync = false;
-        IOReturn res = publishNubGated(&addrPrim, &sync, nullptr);
+        IOReturn res = publishNubGated(nullptr, addrPrim, false, nullptr);
         if (res) {
             OSSafeReleaseNULL(iter);
             return res;
@@ -194,7 +192,7 @@ IOReturn VoodooSMBusControllerDriver::publishMultipleNubs() {
     return kIOReturnSuccess;
 }
 
-VoodooSMBusDeviceNub *VoodooSMBusControllerDriver::createNub(UInt8 address, OSDictionary *props) {
+LIBKERN_RETURNS_RETAINED VoodooSMBusDeviceNub * VoodooSMBusControllerDriver::createNub(UInt8 address, OSDictionary *props) {
     auto *device_nub = OSTypeAlloc(VoodooSMBusDeviceNub);
     
     if (device_nub == nullptr ||
@@ -208,36 +206,40 @@ VoodooSMBusDeviceNub *VoodooSMBusControllerDriver::createNub(UInt8 address, OSDi
     return device_nub;
 }
 
-IOReturn VoodooSMBusControllerDriver::publishNubGated(UInt8 *address, bool *sync, OSDictionary *props) {
+IOReturn VoodooSMBusControllerDriver::publishNubGated(IOService *parent, UInt8 address, bool sync, OSDictionary *props) {
     IOReturn ret = kIOReturnSuccess;
-    auto *dev = createNub(*address, props);
+    auto *dev = createNub(address, props);
     if (dev == nullptr) {
         return kIOReturnError;
     }
     
-    // Inserting device retains device
-    if (!insertDevice(deviceList, dev, *address)) {
-        IOLogError("Failed to insert nub %#04x into list", *address);
-        ret = kIOReturnError;
-    } else {
-        IOLogInfo("Publishing nub for slave device at address %#04x", *address);
+    if (parent != nullptr) {
+        dev->setProperty("PS/2 Parent", parent);
     }
     
-    if (*sync) {
-        // Enable interrupts to allow device to match
-        enableInterrupt(0);
+    if (props != nullptr) {
+        dev->setProperty("PS/2 Properties", props);
+    }
+    
+    // Inserting device retains device
+    if (!insertDevice(deviceList, dev, address)) {
+        IOLogError("Failed to insert nub %#04x into list", address);
+        ret = kIOReturnError;
+    } else {
+        IOLogInfo("Publishing nub for slave device at address %#04x", address);
+    }
+    
+    if (sync) {
         dev->registerService(kIOServiceSynchronous);
         
         // Matching failed, remove nub to prevent future matching
         if (dev->getClient() == nullptr) {
             // Deleting device from list does not release
-            deleteDevice(deviceList, *address);
+            IOService *temp = deleteDevice(deviceList, address);
+            OSSafeReleaseNULL(temp);
             dev->terminate();
-            dev->release();
             ret = kIOReturnNoDevice;
         }
-        
-        disableInterrupt(0);
     } else {
         dev->registerService();
     }
@@ -405,51 +407,31 @@ IOReturn VoodooSMBusControllerDriver::transferGated(VoodooSMBusControllerMessage
     return res;
 }
 
-IOReturn VoodooSMBusControllerDriver::publishNub(UInt8 address, OSDictionary *props) {
-    bool sync = true;
+IOReturn VoodooSMBusControllerDriver::publishNub(IOService *parent, UInt8 address, OSDictionary *props) {
     return command_gate->runAction(OSMemberFunctionCast(IOCommandGate::Action, this, &VoodooSMBusControllerDriver::publishNubGated),
-                                   &address, &sync, props);
+                                   parent, reinterpret_cast<void *>(address), reinterpret_cast<void *>(true), props);
 }
 
-IOReturn VoodooSMBusControllerDriver::message(UInt32 type, IOService *provider, void *argument) {
-    OSDictionary *dict = OSDynamicCast(OSDictionary, (const OSMetaClassBase *) argument);
-    OSString *bus;
-    OSNumber *addr;
-    OSDictionary *props;
+IOReturn VoodooSMBusControllerDriver::callPlatformFunction(const OSSymbol *functionName, bool waitForFunction, void *param1, void *param2, void *param3, void *param4) {
     IOReturn ret;
     
-    switch (type) {
-        case kPS2C_deviceDiscovered:
-            if (!dict) {
-                return kIOReturnError;
-            }
-            
-            // Make sure it's an SMBus device
-            bus = OSDynamicCast(OSString, dict->getObject("DeviceProtocol"));
-            addr = OSDynamicCast(OSNumber, dict->getObject("DeviceAddress"));
-            props = OSDynamicCast(OSDictionary, dict->getObject("DeviceData"));
-            if (bus == nullptr || !bus->isEqualTo("SMBus") ||
-                addr == nullptr) {
-                return kIOReturnBadArgument;
-            }
-            
-            IOLogDebug("SMBus Device Discovered");
-            
-            // Make sure interrupts aren't processed when adding new nub
-            provider->disableInterrupt(0);
-            ret = publishNub(addr->unsigned8BitValue(), props);
-            if (interruptEnabled) {
-                provider->enableInterrupt(0);
-            }
-            
-            if (ret < 0) {
-                IOLogError("Failed to create nub for VPS2: %x\n", ret);
-            }
-            
-            return ret;
-        case kPS2C_wakeCompleted:
-            return kIOReturnSuccess;
-        default:
-            return super::message(type, provider, argument);
+    if (functionName == gSMBusCompanionSymbol) {
+        IOService *parent = OSDynamicCast(IOService, (const OSMetaClassBase *) param1);
+        OSDictionary *dict = OSDynamicCast(OSDictionary, (const OSMetaClassBase *) param2);
+        UInt8 addr = static_cast<UInt8>(reinterpret_cast<size_t>(param3));
+        if (!dict || !parent) {
+            return kIOReturnError;
+        }
+        
+        IOLogDebug("SMBus Device Discovered");
+        
+        ret = publishNub(parent, addr, dict);
+        if (ret < 0) {
+            IOLogError("Failed to create nub for VPS2: %x\n", ret);
+        }
+        
+        return ret;
     }
+    
+    return super::callPlatformFunction(functionName, waitForFunction, param1, param2, param3, param4);
 }

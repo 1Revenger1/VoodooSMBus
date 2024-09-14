@@ -23,7 +23,6 @@
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
-		A40E3480273B4BF100399422 /* VPS2.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = VPS2.h; sourceTree = "<group>"; };
 		A40E3483273C64A700399422 /* DeviceList.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = DeviceList.h; sourceTree = "<group>"; };
 		A40E3484273C64A700399422 /* DeviceList.cpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; path = DeviceList.cpp; sourceTree = "<group>"; };
 		A4975C39258FFD5700E58257 /* libkmod.a */ = {isa = PBXFileReference; lastKnownFileType = archive.ar; name = libkmod.a; path = usr/lib/libkmod.a; sourceTree = SDKROOT; };
@@ -73,7 +72,6 @@
 			isa = PBXGroup;
 			children = (
 				B39530D6247F38A300F1751C /* HostNotifyMessage.h */,
-				A40E3480273B4BF100399422 /* VPS2.h */,
 			);
 			path = Headers;
 			sourceTree = "<group>";

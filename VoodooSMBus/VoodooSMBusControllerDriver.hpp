@@ -24,7 +24,6 @@
 #include "i2c_i801.cpp"
 #include "VoodooSMBusDeviceNub.hpp"
 #include "./Headers/HostNotifyMessage.h"
-#include "./Headers/VPS2.h"
 #include "./Utility/DeviceList.h"
 
 #ifndef __ACIDANTHERA_MAC_SDK
@@ -46,7 +45,6 @@ public:
     i801_adapter* adapter;
     OSArray* addresses;
     DeviceList *deviceList {nullptr};
-    bool interruptEnabled {false};
     
     virtual bool init(OSDictionary *dictionary = 0) override;
     virtual void free(void) override;
@@ -54,7 +52,7 @@ public:
     virtual bool start(IOService *provider) override;
     virtual void stop(IOService *provider) override;
     IOReturn setPowerState(unsigned long whichState, IOService* whatDevice) override;
-    IOReturn message(UInt32 type, IOService *provider, void *arg = 0) override;
+    IOReturn callPlatformFunction(const OSSymbol *functionName, bool waitForFunction, void *param1, void *param2, void *param3, void *param4) override;
 
     IOWorkLoop* getWorkLoop();
     static void handleInterrupt(OSObject* owner, void *refCon, IOService *nub, int source);
@@ -142,8 +140,8 @@ private:
     bool awake;
     
     VoodooSMBusDeviceNub *createNub(UInt8 address, OSDictionary *props);
-    IOReturn publishNub(UInt8 address, OSDictionary *props);
-    IOReturn publishNubGated(UInt8 *address, bool *sync, OSDictionary *props);
+    IOReturn publishNub(IOService *parent, UInt8 address, OSDictionary *props);
+    IOReturn publishNubGated(IOService *parent, UInt8 address, bool sync, OSDictionary *props);
     IOReturn publishMultipleNubs();
     void releaseResources();
     
