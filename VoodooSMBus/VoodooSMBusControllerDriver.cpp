@@ -16,7 +16,6 @@
 OSDefineMetaClassAndStructors(VoodooSMBusControllerDriver, IOService)
 
 #define super IOService
-#define MILLI_TO_NANO 1000000
 
 static const OSSymbol *gSMBusCompanionSymbol = nullptr;
 
@@ -82,7 +81,7 @@ bool VoodooSMBusControllerDriver::start(IOService *provider) {
     adapter->features |= FEATURE_BLOCK_BUFFER;
     adapter->features |= FEATURE_HOST_NOTIFY;
     adapter->retries = 3;
-    adapter->timeout = 200 * MILLI_TO_NANO;
+    adapter->timeout = 200; // MS
     
     work_loop = reinterpret_cast<IOWorkLoop*>(getWorkLoop());
     if (!work_loop) {

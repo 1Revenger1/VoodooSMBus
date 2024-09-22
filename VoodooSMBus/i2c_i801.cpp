@@ -309,7 +309,7 @@ static int i801_transaction(struct i801_adapter *priv, int xact)
     int status;
     int result;
     IOReturn sleep_result;
-    AbsoluteTime timeout, curTime;
+    AbsoluteTime deadline;
     
     result = i801_check_pre(priv);
     if (result < 0)
@@ -319,9 +319,8 @@ static int i801_transaction(struct i801_adapter *priv, int xact)
         priv->outb_p(xact | SMBHSTCNT_INTREN | SMBHSTCNT_START,
                SMBHSTCNT(priv));
         
-        clock_get_uptime(&curTime);
-        nanoseconds_to_absolutetime(priv->timeout, &timeout);
-        sleep_result = priv->command_gate->commandSleep(&priv->status, curTime + timeout, THREAD_ABORTSAFE);
+        clock_interval_to_deadline(priv->timeout, kMillisecondScale, &deadline);
+        sleep_result = priv->command_gate->commandSleep(&priv->status, deadline, THREAD_ABORTSAFE);
         
         if ( sleep_result == THREAD_TIMED_OUT ) {
             IOLogError("Timeout waiting for bus to accept transfer request");
@@ -374,7 +373,7 @@ static int i801_block_transaction_byte_by_byte(struct i801_adapter *priv,
     int smbcmd;
     int status = 0;
     IOReturn result;
-    AbsoluteTime curTime, timeout;
+    AbsoluteTime deadline;
 
     result = i801_check_pre(priv);
     if (result < 0)
@@ -404,9 +403,8 @@ static int i801_block_transaction_byte_by_byte(struct i801_adapter *priv,
         
         priv->outb_p(priv->cmd | SMBHSTCNT_START, SMBHSTCNT(priv));
         
-        clock_get_uptime(&curTime);
-        nanoseconds_to_absolutetime(priv->timeout, &timeout);
-        result = priv->command_gate->commandSleep(&priv->status, curTime + timeout, THREAD_ABORTSAFE);
+        clock_interval_to_deadline(priv->timeout, kMillisecondScale, &deadline);
+        result = priv->command_gate->commandSleep(&priv->status, deadline, THREAD_ABORTSAFE);
         
         if ( result == THREAD_TIMED_OUT ) {
             IOLogError("Timeout waiting for bus to accept transfer request");
