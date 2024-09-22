@@ -109,6 +109,7 @@ bool VoodooSMBusControllerDriver::start(IOService *provider) {
     publishMultipleNubs();
     enableHostNotify();
     
+    publishResource(gSMBusCompanionSymbol, this);
     registerService();
 
     return result;
@@ -212,25 +213,21 @@ IOReturn VoodooSMBusControllerDriver::publishNubGated(IOService *parent, UInt8 a
         return kIOReturnError;
     }
     
-    if (parent != nullptr) {
-        dev->setProperty("PS/2 Parent", parent);
-    }
-    
-    if (props != nullptr) {
-        dev->setProperty("PS/2 Properties", props);
-    }
+    dev->setProperty("PS/2 Parent", parent);
+    dev->setProperty("PS/2 Properties", props);
     
     // Inserting device retains device
     if (!insertDevice(deviceList, dev, address)) {
         IOLogError("Failed to insert nub %#04x into list", address);
-        ret = kIOReturnError;
+        OSSafeReleaseNULL(dev);
+        return kIOReturnError;
     } else {
         IOLogInfo("Publishing nub for slave device at address %#04x", address);
     }
     
     if (sync) {
         dev->registerService(kIOServiceSynchronous);
-        
+        IOLogInfo("Finished probing w/ client %p", dev->getClient());
         // Matching failed, remove nub to prevent future matching
         if (dev->getClient() == nullptr) {
             // Deleting device from list does not release
@@ -243,7 +240,7 @@ IOReturn VoodooSMBusControllerDriver::publishNubGated(IOService *parent, UInt8 a
         dev->registerService();
     }
     
-    dev->release();
+    OSSafeReleaseNULL(dev);
     return ret;
 }
 
@@ -415,16 +412,16 @@ IOReturn VoodooSMBusControllerDriver::callPlatformFunction(const OSSymbol *funct
     IOReturn ret;
     
     if (functionName == gSMBusCompanionSymbol) {
-        IOService *parent = OSDynamicCast(IOService, (const OSMetaClassBase *) param1);
-        OSDictionary *dict = OSDynamicCast(OSDictionary, (const OSMetaClassBase *) param2);
+        IOService *parent = OSDynamicCast(IOService, (OSMetaClassBase *) param1);
+        OSDictionary *dict = OSDynamicCast(OSDictionary, (OSMetaClassBase *) param2);
         UInt8 addr = static_cast<UInt8>(reinterpret_cast<size_t>(param3));
         if (!dict || !parent) {
-            return kIOReturnError;
+            return kIOReturnBadArgument;
         }
         
         IOLogDebug("SMBus Device Discovered");
         
-        ret = publishNub(parent, addr, dict);
+        ret = publishNubGated(parent, addr, true, dict);
         if (ret < 0) {
             IOLogError("Failed to create nub for VPS2: %x\n", ret);
         }
