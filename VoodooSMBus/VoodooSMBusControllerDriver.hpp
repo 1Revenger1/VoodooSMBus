@@ -139,10 +139,11 @@ private:
     IOWorkLoop* work_loop {nullptr};
     bool awake;
     
-    VoodooSMBusDeviceNub *createNub(UInt8 address, OSDictionary *props);
-    IOReturn publishNub(IOService *parent, UInt8 address, OSDictionary *props);
-    IOReturn publishNubGated(IOService *parent, UInt8 address, bool sync, OSDictionary *props);
-    IOReturn publishMultipleNubs();
+    VoodooSMBusDeviceNub *createNub(UInt8 address, IOService *ps2parent, OSDictionary *props);
+    IOReturn createNubGated(UInt8 address, IOService *ps2parent, OSDictionary *props, VoodooSMBusDeviceNub **nub);
+    void removeNub(UInt8 address);
+    IOReturn removeNubGated(UInt8 address);
+    void publishMultipleNubs();
     void releaseResources();
     
     void enableHostNotify();

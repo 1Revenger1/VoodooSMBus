@@ -29,7 +29,7 @@ class EXPORT VoodooSMBusDeviceNub : public IOService {
     OSDeclareDefaultStructors(VoodooSMBusDeviceNub);
     
 public:
-    bool init(OSDictionary *props) override;
+    bool init() override;
     bool attach(IOService* provider, UInt8 address);
     void free() override;
 
@@ -42,8 +42,6 @@ public:
     IOReturn writeByte(u8 value);
     IOReturn writeBlockData(u8 command, u8 length, const u8 *values);
     IOReturn wakeupController();
-    
-    OSDictionary *getDeviceProps();
     
 private:
     OSDictionary *deviceProps {nullptr};

@@ -89,8 +89,10 @@ bool VoodooSMBusControllerDriver::start(IOService *provider) {
         goto exit;
     }
     
-    provider->registerInterrupt(0, nullptr, handleInterrupt, this);
-    provider->enableInterrupt(0);
+    if (provider->registerInterrupt(0, nullptr, handleInterrupt, this) != kIOReturnSuccess) {
+        IOLogError("%s Could not register interrupt", getName());
+        goto exit;
+    }
     
     command_gate = IOCommandGate::commandGate(this);
     if (!command_gate || (work_loop->addEventSource(command_gate) != kIOReturnSuccess)) {
@@ -104,9 +106,11 @@ bool VoodooSMBusControllerDriver::start(IOService *provider) {
     provider->joinPMtree(this);
     registerPowerDriver(this, VoodooSMBusPowerStates, kVoodooSMBusPowerStates);
     pci_device->enablePCIPowerManagement(kPCIPMCSPowerStateD0);
-
+    
     deviceList = createEmptyList();
     publishMultipleNubs();
+    // Enable interrupts so that device drivers can probe/attach
+    provider->enableInterrupt(0);
     enableHostNotify();
     
     publishResource(gSMBusCompanionSymbol, this);
@@ -137,6 +141,7 @@ void VoodooSMBusControllerDriver::releaseResources() {
 void VoodooSMBusControllerDriver::stop(IOService *provider) {
     disableHostNotify();
     pci_device->ioWrite8(SMBHSTCFG, adapter->original_hstcfg);
+    provider->disableInterrupt(0);
     provider->unregisterInterrupt(0);
     releaseResources();
     PMstop();
@@ -166,82 +171,91 @@ void VoodooSMBusControllerDriver::disableCommandGate() {
     command_gate->disable();
 }
 
-IOReturn VoodooSMBusControllerDriver::publishMultipleNubs() {
+void VoodooSMBusControllerDriver::publishMultipleNubs() {
     addresses = OSDynamicCast(OSArray, getProperty("Addresses"));
-    if (!addresses) {
-        return kIOReturnError;
-    }
+    if (!addresses)
+        return;
     
     OSIterator *iter = OSCollectionIterator::withCollection(addresses);
-    if (!iter) {
-        return kIOReturnError;
-    }
+    if (!iter)
+        return;
     
     while (OSNumber *addr = OSDynamicCast(OSNumber, iter->getNextObject()))
     {
         uint8_t addrPrim = addr->unsigned8BitValue();
-        IOReturn res = publishNubGated(nullptr, addrPrim, false, nullptr);
-        if (res) {
-            OSSafeReleaseNULL(iter);
-            return res;
-        }
+        VoodooSMBusDeviceNub *dev;
+        IOReturn ret = createNubGated(addrPrim, nullptr, nullptr, &dev);
+        if (ret != kIOReturnSuccess)
+            goto exit;
+        
+        dev->registerService();
     }
     
+exit:
     OSSafeReleaseNULL(iter);
-    
-    return kIOReturnSuccess;
 }
 
-LIBKERN_RETURNS_RETAINED VoodooSMBusDeviceNub * VoodooSMBusControllerDriver::createNub(UInt8 address, OSDictionary *props) {
+VoodooSMBusDeviceNub *VoodooSMBusControllerDriver::createNub(UInt8 address, IOService *ps2parent, OSDictionary *props) {
+    VoodooSMBusDeviceNub *dev;
+    IOReturn ret = command_gate->runAction(OSMemberFunctionCast(Action, this, &VoodooSMBusControllerDriver::createNubGated),
+                                           reinterpret_cast<void *>(address),
+                                           ps2parent,
+                                           props,
+                                           &dev);
+    
+    return ret == kIOReturnSuccess ? dev : nullptr;
+}
+
+
+IOReturn VoodooSMBusControllerDriver::createNubGated(UInt8 address, IOService *ps2parent, OSDictionary *props, VoodooSMBusDeviceNub **nub) {
+    if (!nub) {
+        return kIOReturnBadArgument;
+    }
+    
     auto *device_nub = OSTypeAlloc(VoodooSMBusDeviceNub);
     
     if (device_nub == nullptr ||
-        !device_nub->init(props) ||
+        !device_nub->init() ||
         !device_nub->attach(this, address) ||
         !device_nub->start(this)) {
         IOLogError("%s::%s Could not initialise nub", getName(), adapter->name);
         OSSafeReleaseNULL(device_nub);
-    }
-    
-    return device_nub;
-}
-
-IOReturn VoodooSMBusControllerDriver::publishNubGated(IOService *parent, UInt8 address, bool sync, OSDictionary *props) {
-    IOReturn ret = kIOReturnSuccess;
-    auto *dev = createNub(address, props);
-    if (dev == nullptr) {
+        *nub = nullptr;
         return kIOReturnError;
     }
     
-    dev->setProperty("PS/2 Parent", parent);
-    dev->setProperty("PS/2 Properties", props);
+    device_nub->setProperty("PS/2 Parent", ps2parent);
+    device_nub->setProperty("PS/2 Properties", props);
     
-    // Inserting device retains device
-    if (!insertDevice(deviceList, dev, address)) {
+    getProvider()->disableInterrupt(0);
+    if (!insertDevice(deviceList, device_nub, address)) {
         IOLogError("Failed to insert nub %#04x into list", address);
-        OSSafeReleaseNULL(dev);
-        return kIOReturnError;
+        OSSafeReleaseNULL(device_nub);
+        *nub = nullptr;
+        return kIOReturnNoMemory;
     } else {
         IOLogInfo("Publishing nub for slave device at address %#04x", address);
     }
     
-    if (sync) {
-        dev->registerService(kIOServiceSynchronous);
-        IOLogInfo("Finished probing w/ client %p", dev->getClient());
-        // Matching failed, remove nub to prevent future matching
-        if (dev->getClient() == nullptr) {
-            // Deleting device from list does not release
-            IOService *temp = deleteDevice(deviceList, address);
-            OSSafeReleaseNULL(temp);
-            dev->terminate();
-            ret = kIOReturnNoDevice;
-        }
-    } else {
-        dev->registerService();
-    }
-    
-    OSSafeReleaseNULL(dev);
-    return ret;
+    getProvider()->enableInterrupt(0);
+    *nub = device_nub;
+    return kIOReturnSuccess;
+}
+
+
+void VoodooSMBusControllerDriver::removeNub(UInt8 address) {
+    command_gate->runAction(OSMemberFunctionCast(Action, this, &VoodooSMBusControllerDriver::removeNubGated),
+                            reinterpret_cast<void *>(address));
+}
+
+
+IOReturn VoodooSMBusControllerDriver::removeNubGated(UInt8 address) {
+    getProvider()->disableInterrupt(0);
+    IOService *temp = deleteDevice(deviceList, address);
+    if (temp) temp->terminate();
+    OSSafeReleaseNULL(temp);
+    getProvider()->enableInterrupt(0);
+    return kIOReturnSuccess;
 }
 
 IOWorkLoop* VoodooSMBusControllerDriver::getWorkLoop() {
@@ -403,14 +417,7 @@ IOReturn VoodooSMBusControllerDriver::transferGated(VoodooSMBusControllerMessage
     return res;
 }
 
-IOReturn VoodooSMBusControllerDriver::publishNub(IOService *parent, UInt8 address, OSDictionary *props) {
-    return command_gate->runAction(OSMemberFunctionCast(IOCommandGate::Action, this, &VoodooSMBusControllerDriver::publishNubGated),
-                                   parent, reinterpret_cast<void *>(address), reinterpret_cast<void *>(true), props);
-}
-
 IOReturn VoodooSMBusControllerDriver::callPlatformFunction(const OSSymbol *functionName, bool waitForFunction, void *param1, void *param2, void *param3, void *param4) {
-    IOReturn ret;
-    
     if (functionName == gSMBusCompanionSymbol) {
         IOService *parent = OSDynamicCast(IOService, (OSMetaClassBase *) param1);
         OSDictionary *dict = OSDynamicCast(OSDictionary, (OSMetaClassBase *) param2);
@@ -420,13 +427,22 @@ IOReturn VoodooSMBusControllerDriver::callPlatformFunction(const OSSymbol *funct
         }
         
         IOLogDebug("SMBus Device Discovered");
-        
-        ret = publishNubGated(parent, addr, true, dict);
-        if (ret < 0) {
-            IOLogError("Failed to create nub for VPS2: %x\n", ret);
+        auto *dev = createNub(addr, parent, dict);
+        if (dev == nullptr) {
+            return kIOReturnError;
         }
         
-        return ret;
+        dev->registerService(kIOServiceSynchronous);
+        IOLogInfo("Finished probing w/ client %p", dev->getClient());
+        // Matching failed, remove nub to prevent future matching
+        if (dev->getClient() == nullptr) {
+            removeNub(addr);
+            OSSafeReleaseNULL(dev);
+            return kIOReturnNoDevice;
+        }
+        
+        OSSafeReleaseNULL(dev);
+        return kIOReturnSuccess;
     }
     
     return super::callPlatformFunction(functionName, waitForFunction, param1, param2, param3, param4);

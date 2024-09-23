@@ -12,7 +12,7 @@
 #define super IOService
 OSDefineMetaClassAndStructors(VoodooSMBusDeviceNub, IOService);
 
-bool VoodooSMBusDeviceNub::init(OSDictionary *props) {
+bool VoodooSMBusDeviceNub::init() {
     bool result = super::init();
     
     workloop = IOWorkLoop::workLoop();
@@ -26,8 +26,6 @@ bool VoodooSMBusDeviceNub::init(OSDictionary *props) {
 
     if (!interruptSource) return false;
     workloop->addEventSource(interruptSource);
-    
-    deviceProps = props;
     
     return result;
 }
@@ -101,8 +99,4 @@ IOReturn VoodooSMBusDeviceNub::writeByte(u8 value) {
 
 IOReturn VoodooSMBusDeviceNub::writeBlockData(u8 command, u8 length, const u8 *values) {
     return controller->writeBlockData(&slave_device, command, length, values);
-}
-
-OSDictionary *VoodooSMBusDeviceNub::getDeviceProps() {
-    return deviceProps;
 }
