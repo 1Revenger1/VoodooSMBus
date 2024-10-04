@@ -7,7 +7,7 @@ jobs:
 
     runs-on: macos-latest
     steps:
-    - uses: actions/checkout@v1
+    - uses: actions/checkout@v4
     - name: Checkout submodules
       run: git submodule update --init
     - name: get shortsha
@@ -24,7 +24,7 @@ jobs:
         mkdir build
         xcodebuild -scheme VoodooSMBus build CONFIGURATION_BUILD_DIR=build/${VOODOOSMBUS_SHA}
         mv build/${VOODOOSMBUS_SHA}/VoodooSMBus.kext build/${VOODOOSMBUS_SHA}/${VOODOOSMBUS_SHA}.kext
-    - uses: actions/upload-artifact@v2
+    - uses: actions/upload-artifact@v3
       with:
         name: VoodooSMBus
         path: build/VoodooSMBus-*

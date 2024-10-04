@@ -11,10 +11,15 @@
 #define VoodooSMBusDeviceNub_hpp
 
 #include <IOKit/IOService.h>
+#include <IOKit/IOInterruptEventSource.h>
+
 
 class VoodooSMBusControllerDriver;
-class VoodooSMBusSlaveDevice;
 typedef UInt8 u8;
+struct VoodooSMBusSlaveDevice {
+    UInt8 addr;
+    UInt8 flags;
+};
 
 #ifndef EXPORT
 #define EXPORT __attribute__((visibility("default")))
@@ -26,7 +31,7 @@ class EXPORT VoodooSMBusDeviceNub : public IOService {
 public:
     bool init() override;
     bool attach(IOService* provider, UInt8 address);
-    void free(void) override;
+    void free() override;
 
     void handleHostNotify();
     void setSlaveDeviceFlags(unsigned short flags);
@@ -39,11 +44,13 @@ public:
     IOReturn wakeupController();
     
 private:
-    IOInterruptEventSource *interruptSource;
-    IOWorkLoop *workloop;
+    OSDictionary *deviceProps {nullptr};
+    IOWorkLoop *workloop {nullptr};
+    IOInterruptEventSource *interruptSource {nullptr};
+    
     VoodooSMBusControllerDriver* controller;
     VoodooSMBusSlaveDevice slave_device;
-    void handleHostNotifyGated(OSObject* owner, IOInterruptEventSource* src, int intCount);
+    void handleHostNotifyInterrupt (OSObject* owner, IOInterruptEventSource* src, int intCount);
 };
 
 #endif /* VoodooSMBusDeviceNub_hpp */

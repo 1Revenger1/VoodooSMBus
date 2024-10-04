@@ -13,36 +13,24 @@
 OSDefineMetaClassAndStructors(VoodooSMBusDeviceNub, IOService);
 
 bool VoodooSMBusDeviceNub::init() {
-    if(!super::init()) {
-        return false;
-    }
+    bool result = super::init();
     
     workloop = IOWorkLoop::workLoop();
-    if (!workloop) {
-        return false;
-    }
+    if (!workloop) return false;
+    
+    interruptSource = IOInterruptEventSource::interruptEventSource(
+                       this,
+                       OSMemberFunctionCast(IOInterruptEventAction, this, &VoodooSMBusDeviceNub::handleHostNotifyInterrupt),
+                       nullptr
+                   );
 
-    auto action = OSMemberFunctionCast(IOInterruptEventAction, this, &VoodooSMBusDeviceNub::handleHostNotifyGated);
-    interruptSource = IOInterruptEventSource::interruptEventSource(this, action, nullptr);
-    if (!interruptSource) {
-        return false;
-    }
+    if (!interruptSource) return false;
     workloop->addEventSource(interruptSource);
-    return true;
+    
+    return result;
 }
 
-void VoodooSMBusDeviceNub::free(void) {
-    if (interruptSource) {
-        workloop->removeEventSource(interruptSource);
-        interruptSource->release();
-        interruptSource = nullptr;
-    }
-
-    OSSafeReleaseNULL(workloop);
-    super::free();
-}
-
-void VoodooSMBusDeviceNub::handleHostNotifyGated (OSObject* owner, IOInterruptEventSource* src, int intCount) {
+void VoodooSMBusDeviceNub::handleHostNotifyInterrupt (OSObject* owner, IOInterruptEventSource* src, int intCount) {
     IOService* device_driver = getClient();
     
     if(device_driver) {
@@ -77,6 +65,16 @@ IOReturn VoodooSMBusDeviceNub::wakeupController() {
     } else {
        return kIOReturnError;
     }
+}
+
+void VoodooSMBusDeviceNub::free() {
+    if (interruptSource) {
+        workloop->removeEventSource(interruptSource);
+        interruptSource->release();
+        interruptSource = nullptr;
+    }
+    
+    OSSafeReleaseNULL(workloop);
 }
 
 void VoodooSMBusDeviceNub::setSlaveDeviceFlags(unsigned short flags) {

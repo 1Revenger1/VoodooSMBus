@@ -23,28 +23,28 @@
 #include <IOKit/IOPlatformExpert.h>
 #include "i2c_i801.cpp"
 #include "VoodooSMBusDeviceNub.hpp"
-#include "HostNotifyMessage.h"
+#include "./Headers/HostNotifyMessage.h"
+#include "./Utility/DeviceList.h"
 
 #ifndef __ACIDANTHERA_MAC_SDK
 #error "No Acidanthera SDK"
 #endif
 
 /* Helper struct so we are able to pass more than 4 arguments to `transferGated(..)` */
-typedef struct  {
+struct VoodooSMBusControllerMessage {
     VoodooSMBusSlaveDevice* slave_device;
     char read_write;
     u8 command;
     int protocol;
-} VoodooSMBusControllerMessage;
-
+};
 
 class VoodooSMBusControllerDriver : public IOService {
     OSDeclareDefaultStructors(VoodooSMBusControllerDriver)
 public:
     IOPCIDevice* pci_device;
     i801_adapter* adapter;
-    OSDictionary* device_nubs;
     OSArray* addresses;
+    DeviceList *deviceList {nullptr};
     
     virtual bool init(OSDictionary *dictionary = 0) override;
     virtual void free(void) override;
@@ -52,9 +52,10 @@ public:
     virtual bool start(IOService *provider) override;
     virtual void stop(IOService *provider) override;
     IOReturn setPowerState(unsigned long whichState, IOService* whatDevice) override;
+    IOReturn callPlatformFunction(const OSSymbol *functionName, bool waitForFunction, void *param1, void *param2, void *param3, void *param4) override;
 
     IOWorkLoop* getWorkLoop();
-    void handleInterrupt(OSObject* owner, IOInterruptEventSource* src, int intCount);
+    static void handleInterrupt(OSObject* owner, void *refCon, IOService *nub, int source);
 
     /**
      * readByteData - SMBus "read byte" protocol
@@ -134,13 +135,15 @@ public:
     
     
 private:
-    IOCommandGate* command_gate;
-    IOWorkLoop* work_loop;
-    IOInterruptEventSource* interrupt_source;
+    IOCommandGate* command_gate {nullptr};
+    IOWorkLoop* work_loop {nullptr};
     bool awake;
     
-    IOReturn publishNub(UInt8 address);
-    IOReturn publishMultipleNubs();
+    VoodooSMBusDeviceNub *createNub(UInt8 address, IOService *ps2parent, OSDictionary *props);
+    IOReturn createNubGated(UInt8 address, IOService *ps2parent, OSDictionary *props, VoodooSMBusDeviceNub **nub);
+    void removeNub(UInt8 address);
+    IOReturn removeNubGated(UInt8 address);
+    void publishMultipleNubs();
     void releaseResources();
     
     void enableHostNotify();
