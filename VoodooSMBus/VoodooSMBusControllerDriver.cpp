@@ -211,7 +211,12 @@ IOReturn VoodooSMBusControllerDriver::createNubGated(UInt8 address, IOService *p
     if (!nub) {
         return kIOReturnBadArgument;
     }
-    
+
+    if (getDevice(deviceList, address) != nullptr) {
+        IOLogError("Device at 0x%x already exists!", address);
+        return kIOReturnPortExists;
+    }
+
     auto *device_nub = OSTypeAlloc(VoodooSMBusDeviceNub);
     
     if (device_nub == nullptr ||
